@@ -21,10 +21,10 @@ Based on a general CGStepImpl a policy-based approach is used to adjust the impl
 The solvers are called CG, TCG, RCG, TRCG and support different terminatin criteria. 
 The simplest way to generate a cg solver is:
 
-<code>auto cg   = make_cg<CG,KrylovTerminationCriterion::ResidualBased>(A,P,sp);</code>
+<code>auto cg   = make_cg&lt;CG,KrylovTerminationCriterion::ResidualBased&gt;(A,P,sp);</code>
 
-<code>auto tcg  = make_cg<TCG,KrylovTerminationCriterion::RelativeEnergyError>(A,P,sp);</code>
+<code>auto tcg  = make_cg&lt;TCG,KrylovTerminationCriterion::RelativeEnergyError&gt;(A,P,sp);</code>
 
-<code>auto rcg  = make_cg<RCG,KrylovTerminationCriterion::ResidualBased>(A,P,sp);</code>
+<code>auto rcg  = make_cg&lt;RCG,KrylovTerminationCriterion::ResidualBased&gt;(A,P,sp);</code>
 
-<code>auto trcg = make_cg<TRCG,KrylovTerminationCriterion::RelativeEnergyError>(A,P,sp);</code>
+<code>auto trcg = make_cg&lt;TRCG,KrylovTerminationCriterion::RelativeEnergyError&gt;(A,P,sp);</code>
