@@ -362,7 +362,6 @@ namespace Dune
 
       residual_ = std::make_unique<range_type>(b);
       A_.applyscaleadd(-1,x,*residual_);
-      Qr_ = std::make_unique<domain_type>(x);
       dx_ = nullptr;
       Base::init(*residual_);
     }
@@ -483,6 +482,8 @@ namespace Dune
 
     void applyPreconditioner(range_type r) const
     {
+      if( Qr_ == nullptr ) Qr_ = std::make_unique<domain_type>(x);
+
       P_.apply(*Qr_,r);
       for(auto i=0u; i<iterativeRefinements(); ++i)
       {
