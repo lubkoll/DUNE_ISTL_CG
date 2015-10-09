@@ -363,9 +363,6 @@ namespace Dune
       residual_ = std::make_unique<range_type>(b);
       A_.applyscaleadd(-1,x,*residual_);
       Qr_ = std::make_unique<domain_type>(x);
-//      applyPreconditioner(*residual_);
-
-//      dx_ = std::make_unique<domain_type>(*Qr_);
       dx_ = nullptr;
       Base::init(*residual_);
     }
@@ -379,7 +376,7 @@ namespace Dune
     {
       applyPreconditioner(*residual_);
       computeSearchDirection();
-      computeResidualNormWithRespectToPreconditioner(); // preconditioned residual norm squared
+      computeResidualNormWithRespectToPreconditioner();
 
       range_type Adx(b);
       A_.apply(*dx_,Adx);
