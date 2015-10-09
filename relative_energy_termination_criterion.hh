@@ -22,12 +22,19 @@ namespace Dune
   {
     /*!
       @ingroup ISTL_Solvers
-      @ingroup CGGroup
       @brief %Termination criterion for conjugate gradient methods based on an estimate of the relative energy error.
 
-      Relative energy error termination criterion according to @cite Strakos2005 (see also @cite Hestenes1952, @cite Arioli2004).
+      Relative energy error termination criterion according to @cite Strakos2005 (see also @cite Hestenes1952, and for a related absolute energy error
+      criterion @cite Arioli2004).
+
       Requires that CG starts at \f$ x = 0 \f$. More general starting values might be used, but must be chosen such that
       the estimate for the energy norm of the solution stays positive (see the above mentioned paper for details).
+
+      The essential idea behind this termination criterion is simple: perform \f$d\f$ extra iterations of the conjugate gradient
+      method to estimate the absolute or relative error in the energy norm (the parameter \f$d\f$ can be adjusted with setLookAhead()).
+      To compute the error estimate only quantities that are anyway computed as intermediate results in the conjugate gradient method are required.
+
+      This estimate only relies on local orthogonality and thus its evaluation is numerically stable.
      */
     template <class real_type>
     class RelativeEnergyError :
