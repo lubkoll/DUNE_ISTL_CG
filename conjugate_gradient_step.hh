@@ -296,7 +296,8 @@ namespace Dune
     @ingroup ISTL_Solvers
     @brief Base class for different variants of the conjugate gradient method.
 
-    Solves a linear operator equation \f$Ax=b\f$ with \f$A:\ X\mapsto Y\f$.
+    Solves a linear operator equation \f$Ax=b\f$ with \f$A:\ X\mapsto Y\f$, resp. one of its preconditioned versions
+    \f$PAx=Px\f$ or \f$P_1AP_2P_2^{-1}x=P_1b\f$.
 
     @tparam Domain type of the domain space \f$X\f$
     @tparam Range type of the range space \f$Y\f$
@@ -360,10 +361,10 @@ namespace Dune
       reset();
       P_.pre(x,b);
 
-      residual_ = std::make_unique<range_type>(b);
-      A_.applyscaleadd(-1,x,*residual_);
+      r_ = std::make_unique<range_type>(b);
+      A_.applyscaleadd(-1,x,*r_);
       dx_ = nullptr;
-      Base::init(*residual_);
+      Base::init(*r_);
     }
 
     /*!
@@ -373,7 +374,7 @@ namespace Dune
      */
     void compute(domain_type& x, range_type& b)
     {
-      applyPreconditioner(*residual_);
+      applyPreconditioner(*r_);
       computeSearchDirection();
       computeResidualNormWithRespectToPreconditioner();
 
@@ -398,7 +399,7 @@ namespace Dune
     }
 
     /**
-     * @brief Access scaling for the conjugate search direction.
+     * @brief Access scaling for the conjugate search direction, i.e. \f$\frac{(r,Pr)}{(\delta x,A\delta x)}\f$
      */
     real_type alpha() const
     {
@@ -406,7 +407,7 @@ namespace Dune
     }
 
     /**
-     * @brief Access length of conjugate search direction with respect to the energy norm.
+     * @brief Access length of conjugate search direction with respect to the energy norm, i.e. \f$(\delta x,A\delta x)\f$.
      */
     real_type length() const
     {
@@ -414,8 +415,7 @@ namespace Dune
     }
 
     /**
-     * @brief Access norm of residual with respect to the norm induced by the preconditioner.
-     *
+     * @brief Access norm of residual with respect to the norm induced by the preconditioner, i.e. \f$(r,Pr)\f$, where \f$r=b-Ax\f$.
      */
     real_type preconditionedResidualNorm() const
     {
@@ -423,11 +423,11 @@ namespace Dune
     }
 
     /**
-     * @brief Access norm of residual with respect to the employed scalar product (in general the l2-norm).
+     * @brief Access norm of residual with respect to the employed scalar product (in general the l2-norm), i.e. \f$\|r\|_2\f$, where \f$r=b-Ax\f$.
      */
     real_type residualNorm() const
     {
-      return sp_.norm(*residual_);
+      return sp_.norm(*r_);
     }
 
   private:
@@ -443,7 +443,7 @@ namespace Dune
     auto computeResidualNormWithRespectToPreconditioner()
     {
       using std::abs;
-      sigma_ = abs( sp_.dot(*residual_,*Qr_) );
+      sigma_ = abs( sp_.dot(*r_,*Pr_) );
     }
 
     void computeInducedStepLength(const range_type& Aq)
@@ -460,13 +460,13 @@ namespace Dune
     void computeSearchDirection()
     {
       if( dx_ == nullptr){
-        dx_ = std::make_unique<domain_type>(*Qr_);
+        dx_ = std::make_unique<domain_type>(*Pr_);
         return;
       }
       using std::abs;
-      auto beta = abs( sp_.dot(*residual_,*Qr_) )/sigma_;
-      *dx_ *= beta; *dx_ += *Qr_;
-      Base::adjustPreconditionedSearchDirection(beta,*residual_);
+      auto beta = abs( sp_.dot(*r_,*Pr_) )/sigma_;
+      *dx_ *= beta; *dx_ += *Pr_;
+      Base::adjustPreconditionedSearchDirection(beta,*r_);
     }
 
     void updateIterate(domain_type& x)
@@ -476,21 +476,21 @@ namespace Dune
 
     void updateResidual(const range_type& Aq)
     {
-      residual_->axpy(-alpha_,Aq);
-      adjustRegularizedResidual(alpha_,*residual_);
+      r_->axpy(-alpha_,Aq);
+      adjustRegularizedResidual(alpha_,*r_);
     }
 
     void applyPreconditioner(range_type r) const
     {
-      if( Qr_ == nullptr ) Qr_ = std::make_unique<domain_type>(x);
+      if( Pr_ == nullptr ) Pr_ = std::make_unique<domain_type>(x);
 
-      P_.apply(*Qr_,r);
+      P_.apply(*Pr_,r);
       for(auto i=0u; i<iterativeRefinements(); ++i)
       {
-        A_.applyscaleadd(-1.,*Qr_,r);
+        A_.applyscaleadd(-1.,*Pr_,r);
         auto dQr = range_type(r);
         P_.apply(dQr,r);
-        *Qr_ += dQr;
+        *Pr_ += dQr;
       }
     }
 
@@ -498,8 +498,8 @@ namespace Dune
     Preconditioner<domain_type,range_type>& P_;
     SeqScalarProduct<domain_type> ssp_;
     ScalarProduct<domain_type>& sp_;
-    std::unique_ptr<range_type> residual_ = nullptr;
-    std::unique_ptr<domain_type> Qr_ = nullptr, dx_ = nullptr;
+    std::unique_ptr<range_type> r_ = nullptr;
+    std::unique_ptr<domain_type> Pr_ = nullptr, dx_ = nullptr;
     real_type alpha_ = -1, sigma_ = -1, dxAdx_ = -1;
   };
 }
