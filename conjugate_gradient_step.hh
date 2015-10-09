@@ -7,7 +7,6 @@
 #include <stdexcept>
 #include <string>
 
-#include <dune/common/static_assert.hh>
 #include <dune/istl/operators.hh>
 #include <dune/istl/preconditioners.hh>
 
@@ -30,18 +29,6 @@ namespace Dune
       using real_type = real_t<range_type>;
     public:
       CGBase() = default;
-
-      CGBase(CGBase&&) = default;
-      CGBase& operator=(CGBase&&) = default;
-
-      CGBase(const CGBase& other)
-        : operatorType_{other.operatorType_}
-      {}
-
-      CGBase& operator=(const CGBase& other)
-      {
-        operatorType_ = other.operatorType_;
-      }
 
       CGBase(ScalarProduct<domain_type>&)
       {}
@@ -451,7 +438,7 @@ namespace Dune
     {
       if (dxAdx_ <= 0 )
       {
-        if( this->verboseLevel() > 1 ) std::cout << "    " << ": non-positive curvature: " << dxAdx_ << std::endl;
+        if( this->verbosityLevel() > 1 ) std::cout << "    " << ": non-positive curvature: " << dxAdx_ << std::endl;
         this->treatNonconvexity(dxAdx_,x,*dx_);
       }
     }

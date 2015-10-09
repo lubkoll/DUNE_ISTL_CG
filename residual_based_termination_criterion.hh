@@ -19,7 +19,7 @@ namespace Dune
   class InverseOperatorResult;
   /*! @endcond */
 
-  namespace Termination
+  namespace KrylovTerminationCriterion
   {
     /*!
       @ingroup ISTL_Solvers

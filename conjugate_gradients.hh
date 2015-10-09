@@ -20,10 +20,10 @@ namespace Dune
 
     @tparam Domain domain space \f$X\f$
     @tparam Range range space \f$Y\f$
-    @tparam TerminationCriterion termination criterion (such as Dune::Termination::ResidualBased or Dune::Termination::RelativeEnergyError (default))
+    @tparam TerminationCriterion termination criterion (such as Dune::KrylovTerminationCriterion::ResidualBased or Dune::KrylovTerminationCriterion::RelativeEnergyError (default))
    */
   template <class Domain, class Range,
-            template <class> class TerminationCriterion = Termination::RelativeEnergyError >
+            template <class> class TerminationCriterion = KrylovTerminationCriterion::RelativeEnergyError >
   using CG   = GenericIterativeMethod< CGStepImpl<Domain,Range,CGDetail::CGBase>    , TerminationCriterion< real_t<Domain> > >;
 
   /*!
@@ -38,10 +38,10 @@ namespace Dune
 
     @tparam Domain domain space \f$X\f$
     @tparam Range range space \f$Y\f$
-    @tparam TerminationCriterion termination criterion (such as Dune::Termination::ResidualBased or Dune::Termination::RelativeEnergyError (default))
+    @tparam TerminationCriterion termination criterion (such as Dune::KrylovTerminationCriterion::ResidualBased or Dune::KrylovTerminationCriterion::RelativeEnergyError (default))
    */
   template <class Domain, class Range,
-            template <class> class TerminationCriterion = Termination::RelativeEnergyError >
+            template <class> class TerminationCriterion = KrylovTerminationCriterion::RelativeEnergyError >
   using RCG  = GenericIterativeMethod< CGStepImpl<Domain,Range,CGDetail::RCGBase> , TerminationCriterion< real_t<Domain> > >;
 
   /*!
@@ -55,10 +55,10 @@ namespace Dune
 
     @tparam Domain domain space \f$X\f$
     @tparam Range range space \f$Y\f$
-    @tparam TerminationCriterion termination criterion (such as Dune::Termination::ResidualBased or Dune::Termination::RelativeEnergyError (default))
+    @tparam TerminationCriterion termination criterion (such as Dune::KrylovTerminationCriterion::ResidualBased or Dune::KrylovTerminationCriterion::RelativeEnergyError (default))
    */
   template <class Domain, class Range,
-            template <class> class TerminationCriterion = Termination::RelativeEnergyError >
+            template <class> class TerminationCriterion = KrylovTerminationCriterion::RelativeEnergyError >
   using TCG  = GenericIterativeMethod< CGStepImpl<Domain,Range,CGDetail::TCGBase>  , TerminationCriterion< real_t<Domain> > >;
 
   /*!
@@ -79,10 +79,10 @@ namespace Dune
 
     @tparam Domain domain space \f$X\f$
     @tparam Range range space \f$Y\f$
-    @tparam TerminationCriterion termination criterion (such as Dune::Termination::ResidualBased or Dune::Termination::RelativeEnergyError (default))
+    @tparam TerminationCriterion termination criterion (such as Dune::KrylovTerminationCriterion::ResidualBased or Dune::KrylovTerminationCriterion::RelativeEnergyError (default))
    */
   template <class Domain, class Range,
-            template <class> class TerminationCriterion = Termination::RelativeEnergyError >
+            template <class> class TerminationCriterion = KrylovTerminationCriterion::RelativeEnergyError >
   using TRCG = GenericIterativeMethod< CGStepImpl<Domain,Range,CGDetail::TRCGBase> , TerminationCriterion< real_t<Domain> > >;
 
 
@@ -95,10 +95,10 @@ namespace Dune
 
     Usage:
     @code{.cpp}
-    auto cg   = make_cg<Dune::CG  ,Dune::Termination::ResidualBased>(A,P,sp,...);
-    auto rcg  = make_cg<Dune::RCG ,Dune::Termination::ResidualBased>(A,P,sp,...);
-    auto tcg  = make_cg<Dune::TCG ,Dune::Termination::ResidualBased>(A,P,sp,...);
-    auto trcg = make_cg<Dune::TRCG,Dune::Termination::ResidualBased>(A,P,sp,...);
+    auto cg   = make_cg<Dune::CG  ,Dune::KrylovTerminationCriterion::ResidualBased>(A,P,sp,...);
+    auto rcg  = make_cg<Dune::RCG ,Dune::KrylovTerminationCriterion::ResidualBased>(A,P,sp,...);
+    auto tcg  = make_cg<Dune::TCG ,Dune::KrylovTerminationCriterion::ResidualBased>(A,P,sp,...);
+    auto trcg = make_cg<Dune::TRCG,Dune::KrylovTerminationCriterion::ResidualBased>(A,P,sp,...);
     @endcond
 
     @param A linear operator
@@ -109,7 +109,7 @@ namespace Dune
     @param verbosityLevel =1: print final statistics, =2: print information in each iteration
     @param eps maximal attainable accuracy
     @tparam CGType conjugate gradient variant (=CG,RCG,TCG or TRCG)
-    @tparam TerminationCriterion termination criterion (such as Dune::Termination::ResidualBased or Dune::Termination::RelativeEnergyError)
+    @tparam TerminationCriterion termination criterion (such as Dune::KrylovTerminationCriterion::ResidualBased or Dune::KrylovTerminationCriterion::RelativeEnergyError)
     @tparam Domain domain space \f$X\f$
     @tparam Range range space \f$Y\f$
    */
