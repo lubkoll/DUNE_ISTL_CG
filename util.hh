@@ -21,6 +21,10 @@ namespace Dune
   {
     using type = typename Real_t< field_t<Type> >::type;
   };
+  namespace UtilDetail
+  {
+    class Empty {};
+  }
   /*! @endcond */
 
 
@@ -31,6 +35,10 @@ namespace Dune
   //! Convenient access to Type::type
   template <class Type>
   using access_t = typename Type::type;
+
+
+  template <class Derived, class Base>
+  using DeriveFromBaseIfNotAmbiguous = access_t<std::conditional< std::is_base_of<Base,Derived>::value , UtilDetail::Empty , Base > >;
 }
 
 #endif // DUNE_UTIL_HH

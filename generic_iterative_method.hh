@@ -30,7 +30,7 @@ namespace Dune
   namespace GenericIterativeMethodDetail
   {
     template <class ToConnect, class Connector>
-    using TryConnect = decltype(std::declval<Connector>().connect(std::declval<ToConnect>()));
+    using TryMemFn_Connect = decltype(std::declval<Connector>().connect(std::declval<ToConnect>()));
 
     template <class Type>
     using TryMemFn_MinimalDecreaseAchieved = decltype( std::declval<Type>().minimalDecreaseAchieved() );
@@ -95,7 +95,7 @@ namespace Dune
     };
 
     template <class ToConnect, class Connector>
-    struct ConnectIfPossible< ToConnect , Connector , void_t<TryConnect<ToConnect,Connector> > >
+    struct ConnectIfPossible< ToConnect , Connector , void_t<TryMemFn_Connect<ToConnect,Connector> > >
     {
       static void apply(const ToConnect& toConnect, Connector& connector)
       {
@@ -118,11 +118,6 @@ namespace Dune
       if( relaxedTerminationCriterion )
         connect_if_possible(relaxedTerminationCriterion,connector);
     }
-
-    struct Empty{};
-
-    template <class Step>
-    using VerbosityIfNotDefined = access_t<std::conditional< std::is_base_of<Mixin::Verbosity,Step>::value , Empty , Mixin::Verbosity > >;
   }
   /**
    * \endcond
@@ -139,7 +134,7 @@ namespace Dune
       public Step_ ,
       public InverseOperator<typename Step_::domain_type, typename Step_::range_type> ,
       public Mixin::MaxSteps ,
-      public GenericIterativeMethodDetail::VerbosityIfNotDefined<Step_>
+      public DeriveFromBaseIfNotAmbiguous<Step_,Mixin::Verbosity>
   {
   public:
     using Step = Step_;

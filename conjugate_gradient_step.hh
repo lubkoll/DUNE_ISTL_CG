@@ -24,7 +24,9 @@ namespace Dune
 
 
     template <class domain_type,class range_type>
-    class CGBase : public Mixin::Verbosity
+    class CGBase :
+        public Mixin::Verbosity ,
+        public Mixin::Eps< real_t<range_type> >
     {
       using real_type = real_t<range_type>;
     public:
@@ -130,8 +132,7 @@ namespace Dune
 
     template <class domain_type,class range_type>
     class RCGBase :
-        public CGBase<domain_type,range_type> ,
-        public Mixin::Eps< real_t<range_type> >
+        public CGBase<domain_type,range_type>
     {
       using Base = CGBase<domain_type,range_type>;
       using real_type = real_t<range_type>;
