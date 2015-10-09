@@ -19,7 +19,7 @@ which serves as building block for different conjugate gradient methods. Current
 
 Based on a general CGStepImpl a policy-based approach is used to adjust the implementation for truncated, regularized and truncated regularized conjugate gradient methods.
 The solvers are called CG, TCG, RCG, TRCG and support different terminatin criteria. 
-The simplest way to generate a cg solver is:
+The simplest way to generate a cg solver(in namespace Dune) is:
 
 <code>auto cg   = make_cg&lt;CG,KrylovTerminationCriterion::ResidualBased&gt;(A,P,sp);</code>
 
