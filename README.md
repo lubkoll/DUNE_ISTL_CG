@@ -31,10 +31,10 @@ The simplest ways to generate a cg solver(in namespace Dune) are:
 
 or
 
-<code>auto cg   = CG<Domain,Range,KrylovTerminationCriterion::ResidualBased>(A,P,sp,terminationCriterion,maxSteps);</code>
+<code>auto cg   = CG&lt;Domain,Range,KrylovTerminationCriterion::ResidualBased&gt;(A,P,sp,terminationCriterion,maxSteps);</code>
 
-<code>auto tcg  = TCG<Domain,Range,KrylovTerminationCriterion::ResidualBased>(A,P,sp,terminationCriterion,maxSteps);</code>
+<code>auto tcg  = TCG&lt;Domain,Range,KrylovTerminationCriterion::ResidualBased&gt;(A,P,sp,terminationCriterion,maxSteps);</code>
 
-<code>auto rcg  = RCG<Domain,Range,KrylovTerminationCriterion::ResidualBased>(A,P,sp,terminationCriterion,maxSteps);</code>
+<code>auto rcg  = RCG&lt;Domain,Range,KrylovTerminationCriterion::ResidualBased&gt;(A,P,sp,terminationCriterion,maxSteps);</code>
 
-<code>auto trcg = TRCG<Domain,Range,KrylovTerminationCriterion::ResidualBased>(A,P,sp,terminationCriterion,maxSteps);</code>
+<code>auto trcg = TRCG&lt;Domain,Range,KrylovTerminationCriterion::ResidualBased&gt;(A,P,sp,terminationCriterion,maxSteps);</code>
