@@ -361,9 +361,11 @@ namespace Dune
       reset();
       P_.pre(x,b);
 
+      dx_ = nullptr;
+      Pr_ = std::make_unique<domain_type>(x);
+
       r_ = std::make_unique<range_type>(b);
       A_.applyscaleadd(-1,x,*r_);
-      dx_ = nullptr;
       Base::init(*r_);
     }
 
@@ -374,7 +376,7 @@ namespace Dune
      */
     void compute(domain_type& x, range_type& b)
     {
-      applyPreconditioner(*r_);
+      applyPreconditioner();
       computeSearchDirection();
       computeResidualNormWithRespectToPreconditioner();
 
@@ -480,16 +482,14 @@ namespace Dune
       adjustRegularizedResidual(alpha_,*r_);
     }
 
-    void applyPreconditioner(range_type r) const
+    void applyPreconditioner() const
     {
-      if( Pr_ == nullptr ) Pr_ = std::make_unique<domain_type>(x);
-
-      P_.apply(*Pr_,r);
+      P_.apply(*Pr_,*r_);
       for(auto i=0u; i<iterativeRefinements(); ++i)
       {
-        A_.applyscaleadd(-1.,*Pr_,r);
-        auto dQr = range_type(r);
-        P_.apply(dQr,r);
+        A_.applyscaleadd(-1.,*Pr_,*r_);
+        auto dQr = range_type(*r_);
+        P_.apply(dQr,*r_);
         *Pr_ += dQr;
       }
     }

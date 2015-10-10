@@ -148,13 +148,28 @@ namespace Dune
       @param step object implementing one step of an iterative scheme
       @param terminate termination criterion
      */
-    GenericIterativeMethod(Step step, TerminationCriterion terminate)
-      : Step_(std::move(step)),
+    GenericIterativeMethod(Step step, TerminationCriterion terminate, unsigned maxSteps)
+      : Step(std::move(step)) ,
+        Mixin::MaxSteps(maxSteps) ,
         terminate_(std::move(terminate))
     {
       terminate_.connect(*this);
       GenericIterativeMethodDetail::bind_connect_if_possible(terminate_,*this);
     }
+
+    template <class Operator, class Preconditioner, class ScalarProduct,
+              class = std::enable_if_t<std::is_constructible<Step,Operator,Preconditioner,ScalarProduct>::value> >
+    GenericIterativeMethod(Operator&& A, Preconditioner&& P, ScalarProduct&& sp, TerminationCriterion terminate, unsigned maxSteps = 1000)
+      : GenericIterativeMethod( Step(std::forward<Operator>(A),std::forward<Preconditioner>(P),std::forward<ScalarProduct>(sp)) ,
+                                std::move(terminate) , maxSteps )
+    {}
+
+    template <class Operator, class Preconditioner,
+              class = std::enable_if_t<std::is_constructible<Step,Operator,Preconditioner>::value> >
+    GenericIterativeMethod(Operator&& A, Preconditioner&& P, TerminationCriterion terminate, unsigned maxSteps = 1000)
+      : GenericIterativeMethod( Step(std::forward<Operator>(A),std::forward<Preconditioner>(P)) ,
+                                std::move(terminate) , maxSteps )
+    {}
 
     /*!
       @brief Apply loop solver to solve \f$Ax=b\f$.
