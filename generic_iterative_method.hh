@@ -9,6 +9,7 @@
 #include "voider.hh"
 #include "util.hh"
 #include "Mixins/maxSteps.hh"
+#include "Mixins/verbosity.hh"
 
 namespace Dune
 {
@@ -29,6 +30,9 @@ namespace Dune
 
   namespace GenericIterativeMethodDetail
   {
+    template <class Type>
+    using TryMemFn_Terminate = decltype( std::declval<Type>().terminate() );
+
     template <class ToConnect, class Connector>
     using TryMemFn_Connect = decltype(std::declval<Connector>().connect(std::declval<ToConnect>()));
 
@@ -61,6 +65,31 @@ namespace Dune
         return std::function<bool()>{};
       }
     };
+
+    template <class Type, class = void>
+    struct OptionalTerminate
+    {
+      static bool apply(const Type&)
+      {
+        return false;
+      }
+    };
+
+    template <class Type>
+    struct OptionalTerminate< Type , void_t< TryMemFn_Terminate<Type> > >
+    {
+      static bool apply(const Type& t)
+      {
+        return t.terminate();
+      }
+    };
+
+    template <class Type>
+    bool optional_terminate(const Type& t)
+    {
+      return OptionalTerminate<Type>::apply(t);
+    }
+
 
     template <class Type, class = void>
     struct OptionalRestart
@@ -191,11 +220,11 @@ namespace Dune
       {
         computeStep(x,b);
 
-        if( terminate_ ) break;
+        if( terminate_ || GenericIterativeMethodDetail::optional_terminate(*this) ) break;
         if( GenericIterativeMethodDetail::optional_restart(*this) )
         {
           restoreInitialInput(x,b);
-          Step::init(x,b);
+          Step::reset(x,b);
           terminate_.init();
           step = 1u;
           lastErrorEstimate = 1;

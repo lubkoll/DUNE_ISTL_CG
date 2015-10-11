@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <iostream>
 #include <limits>
 #include <stdexcept>
 
@@ -11,6 +12,7 @@
 
 #include "Mixins/eps.hh"
 #include "Mixins/relativeAccuracy.hh"
+#include "Mixins/verbosity.hh"
 #include "util.hh"
 
 namespace Dune
@@ -27,8 +29,9 @@ namespace Dune
      */
     template <class real_type>
     class ResidualBased :
-        public Mixin::Eps<real_type> ,
-        public Mixin::RelativeAccuracy<real_type>
+        public Mixin::Eps<real_type>,
+        public Mixin::RelativeAccuracy<real_type>,
+        public Mixin::Verbosity
     {
     public:
       /*!
@@ -90,6 +93,9 @@ namespace Dune
         ++iteration_;
 
         auto acc = std::max(this->eps(),this->relativeAccuracy());
+
+        if( verbosityLevel() > 1 )
+          std::cout << "Estimated error (res.-based): " << errorEstimate() << std::endl;
 
         if( errorEstimate() < acc )
           return true;

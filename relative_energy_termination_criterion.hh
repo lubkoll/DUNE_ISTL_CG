@@ -41,7 +41,8 @@ namespace Dune
         public Mixin::AbsoluteAccuracy<real_type>,
         public Mixin::RelativeAccuracy<real_type>,
         public Mixin::MinimalAccuracy<real_type>,
-        public Mixin::Eps<real_type>
+        public Mixin::Eps<real_type>,
+        public Mixin::Verbosity
     {
       /*! @cond */
       class TypeErasedCGHolder
@@ -53,6 +54,7 @@ namespace Dune
           virtual real_type alpha() const = 0;
           virtual real_type length() const = 0;
           virtual real_type preconditionedResidualNorm() const = 0;
+          virtual AbstractBase* clone() const = 0;
         };
 
         template <class Type>
@@ -63,12 +65,27 @@ namespace Dune
           real_type alpha() const final override { return type_->alpha(); }
           real_type length() const final override { return type_->length(); }
           real_type preconditionedResidualNorm() const final override { return type_->preconditionedResidualNorm(); }
+          Base* clone() const { return new Base{*type_}; }
         private:
           const Type* type_;
         };
 
       public:
-        TypeErasedCGHolder() = default;
+        TypeErasedCGHolder()
+          : impl_(nullptr)
+        {}
+
+        TypeErasedCGHolder(TypeErasedCGHolder&&) = default;
+        TypeErasedCGHolder& operator=(TypeErasedCGHolder&&) = default;
+
+        TypeErasedCGHolder(const TypeErasedCGHolder& other)
+          : impl_( other.impl_ == nullptr ? nullptr : other.impl_->clone() )
+        {}
+
+        TypeErasedCGHolder& operator=(const TypeErasedCGHolder& other)
+        {
+          impl_ = other.impl_ == nullptr ? nullptr : std::unique_ptr<AbstractBase>(other.impl_->clone());
+        }
 
         template <class Type>
         TypeErasedCGHolder& operator=(const Type& type)
@@ -118,6 +135,9 @@ namespace Dune
       operator bool()
       {
         readParameter();
+
+        if( verbosityLevel() > 1 )
+          std::cout << "Estimated error (rel. energy errror): " << errorEstimate() << std::endl;
 
         if( vanishingStep() ) return true;
 
