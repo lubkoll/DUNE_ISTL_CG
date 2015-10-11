@@ -30,20 +30,20 @@ The solvers are currently called MyCGSolver, TCGSolver, RCGSolver, TRCGSolver an
 The syntax is as previously with additional optional template parameter for the termination criterion.
 The simplest ways to generate a cg solver(in namespace Dune) are:
 
-<code>auto cg   = make_cg&lt;CG,KrylovTerminationCriterion::ResidualBased&gt;(A,P,sp);</code>
+<code>auto cg   = make_cg&lt;MyCGSolver,KrylovTerminationCriterion::ResidualBased&gt;(A,P,sp);</code>
 
-<code>auto tcg  = make_cg&lt;TCG,KrylovTerminationCriterion::RelativeEnergyError&gt;(A,P,sp);</code>
+<code>auto tcg  = make_cg&lt;TCGSolver,KrylovTerminationCriterion::RelativeEnergyError&gt;(A,P,sp);</code>
 
-<code>auto rcg  = make_cg&lt;RCG,KrylovTerminationCriterion::ResidualBased&gt;(A,P,sp);</code>
+<code>auto rcg  = make_cg&lt;RCGSolver,KrylovTerminationCriterion::ResidualBased&gt;(A,P,sp);</code>
 
-<code>auto trcg = make_cg&lt;TRCG,KrylovTerminationCriterion::RelativeEnergyError&gt;(A,P,sp);</code>
+<code>auto trcg = make_cg&lt;TRCGSolver,KrylovTerminationCriterion::RelativeEnergyError&gt;(A,P,sp);</code>
 
 or
 
-<code>auto cg   = CG&lt;Domain,Range&gt;(A,P,sp,terminationCriterion);</code>
+<code>auto cg   = MyCGSolver&lt;Domain,Range&gt;(A,P,sp,terminationCriterion);</code>
 
-<code>auto tcg  = TCG&lt;Domain,Range,KrylovTerminationCriterion::ResidualBased&gt;(A,P,sp,terminationCriterion);</code>
+<code>auto tcg  = TCGSolver&lt;Domain,Range,KrylovTerminationCriterion::ResidualBased&gt;(A,P,sp,terminationCriterion);</code>
 
-<code>auto rcg  = RCG&lt;Domain,Range&gt;(A,P,sp,terminationCriterion);</code>
+<code>auto rcg  = RCGSolver&lt;Domain,Range&gt;(A,P,sp,terminationCriterion);</code>
 
-<code>auto trcg = TRCG&lt;Domain,Range,KrylovTerminationCriterion::ResidualBased&gt;(A,P,sp,terminationCriterion);</code>
+<code>auto trcg = TRCGSolver&lt;Domain,Range,KrylovTerminationCriterion::ResidualBased&gt;(A,P,sp,terminationCriterion);</code>
