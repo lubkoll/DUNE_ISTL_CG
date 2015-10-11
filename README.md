@@ -17,8 +17,17 @@ which serves as building block for different conjugate gradient methods. Current
 
 <code>} }</code>
 
-Based on a general CGStepImpl a policy-based approach is used to adjust the implementation for truncated, regularized and truncated regularized conjugate gradient methods.
-The solvers are called CG, TCG, RCG, TRCG and support different terminatin criteria. 
+The step computation is again decomposed into different substeps that work on a common data structure. The general structure is as follows (though most of the steps can be replaced with whatever you want it to be):
+ - Application of the preconditioner
+ - Computation of the search direction
+ - Computation of the scaling parameter for the search direction
+ - Treat nonconvexity
+ - Update iterate
+ - Adjust other data
+
+Based on this GenericStep, different conjugate gradient solvers and the Chebyshev semi-iteration are implemented
+The solvers are currently called MyCGSolver, TCGSolver, RCGSolver, TRCGSolver and support different terminatin criteria. 
+The syntax is as previously with additional optional template parameter for the termination criterion.
 The simplest ways to generate a cg solver(in namespace Dune) are:
 
 <code>auto cg   = make_cg&lt;CG,KrylovTerminationCriterion::ResidualBased&gt;(A,P,sp);</code>

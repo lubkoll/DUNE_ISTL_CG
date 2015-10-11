@@ -177,7 +177,7 @@ namespace Dune
       @param step object implementing one step of an iterative scheme
       @param terminate termination criterion
      */
-    GenericIterativeMethod(Step step, TerminationCriterion terminate, unsigned maxSteps)
+    GenericIterativeMethod(Step step, TerminationCriterion terminate, unsigned maxSteps = 1000)
       : Step(std::move(step)) ,
         Mixin::MaxSteps(maxSteps) ,
         terminate_(std::move(terminate))

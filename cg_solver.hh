@@ -271,6 +271,53 @@ namespace Dune
   template <class Domain, class Range,
             template <class> class TerminationCriterion = KrylovTerminationCriterion::RelativeEnergyError>
   using MyCGSolver = GenericIterativeMethod< CGSpec::Step<Domain,Range> , TerminationCriterion< real_t<Domain> > >;
+
+
+  /*!
+    @ingroup ISTL_Solvers
+    @brief Generate conjugate gradient method.
+
+    Solves equations of the form \f$PAx=Pb\f$, where \f$A:\ X\mapsto Y\f$ is a linear operator and
+    \f$ P:\ Y\mapsto X\f$ a preconditioner.
+
+    Usage:
+    @code{.cpp}
+    auto cg   = make_cg<Dune::CG  ,Dune::KrylovTerminationCriterion::ResidualBased>(A,P,sp,...);
+    auto rcg  = make_cg<Dune::RCG ,Dune::KrylovTerminationCriterion::ResidualBased>(A,P,sp,...);
+    auto tcg  = make_cg<Dune::TCG ,Dune::KrylovTerminationCriterion::ResidualBased>(A,P,sp,...);
+    auto trcg = make_cg<Dune::TRCG,Dune::KrylovTerminationCriterion::ResidualBased>(A,P,sp,...);
+    @endcond
+
+    @param A linear operator
+    @param P preconditioner
+    @param sp scalar product
+    @param accuracy relative accuracy
+    @param nSteps maximal number of steps
+    @param verbosityLevel =1: print final statistics, =2: print information in each iteration
+    @param eps maximal attainable accuracy
+    @tparam CGType conjugate gradient variant (=CG,RCG,TCG or TRCG)
+    @tparam TerminationCriterion termination criterion (such as Dune::KrylovTerminationCriterion::ResidualBased or Dune::KrylovTerminationCriterion::RelativeEnergyError)
+    @tparam Domain domain space \f$X\f$
+    @tparam Range range space \f$Y\f$
+   */
+  template <template <class,class,template <class> class> class CGType,
+            template <class> class TerminationCriterion,
+            class Domain, class Range, class real_type = real_t<Domain> >
+  auto make_cg(LinearOperator<Domain,Range>& A,
+               Preconditioner<Domain,Range>& P,
+               ScalarProduct<Domain>& sp,
+               real_type accuracy = 1e-15, unsigned nSteps = 1000,
+               unsigned verbosityLevel = 0, real_type eps = 1e-15)
+  {
+    using MyCG = CGType<Domain,Range,TerminationCriterion>;
+    TerminationCriterion< real_t<Domain> > terminationCriterion;
+    terminationCriterion.setRelativeAccuracy(accuracy);
+    terminationCriterion.setEps(eps);
+    auto cg = MyCG{ typename MyCG::Step{ A,P,sp } , std::move(terminationCriterion) };
+    cg.setMaxSteps(nSteps);
+    cg.setVerbosityLevel(verbosityLevel);
+    return cg;
+  }
 }
 
 #endif // DUNE_CG_HH
