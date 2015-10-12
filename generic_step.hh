@@ -4,8 +4,10 @@
 #include <string>
 #include <utility>
 
-#include "Mixins/eps.hh"
-#include "Mixins/verbosity.hh"
+#include "mixins.hh"
+#include "tmp/compile_time_sequence.hh"
+#include "tmp/logic.hh"
+#include "tmp/optional_base_class.hh"
 #include "util.hh"
 
 namespace Dune
@@ -32,7 +34,7 @@ namespace Dune
 
   /*!
     @ingroup ISTL_Solvers
-    @brief Generic policy-based step of an iterative method.
+    @brief Generic step of an iterative method.
 
     Solves a linear operator equation \f$Ax=b\f$ with \f$A:\ X\mapsto Y\f$, resp. one of its preconditioned versions
     \f$PAx=Px\f$ or \f$P_1AP_2P_2^{-1}x=P_1b\f$.
@@ -41,7 +43,9 @@ namespace Dune
        1. Apply preconditioner
        2. Compute search direction
        3. Compute scaling for the search direction
-       4. Update iterate
+       4. Possibly treat nonconvexity
+       5. Update iterate
+       6. Adjust other internal data (such as the residual)
 
     @tparam Domain type of the domain space \f$X\f$
     @tparam Range type of the range space \f$Y\f$
@@ -57,8 +61,13 @@ namespace Dune
             template <class> class Interface = GenericStepDetail::NoInterface>
   class GenericStep :
       public Interface<Data>,
-      public Mixin::Eps< real_t<Domain> >,
-      public Mixin::Verbosity
+      public TMP::BaseClassesIf<
+        TMP::OrUnaryToSequence<
+          TMP::IsBaseOf ,
+          TMP::Sequence<ApplyPreconditioner,SearchDirection,Scaling,TreatNonconvexity,UpdateIterate,AdjustData,Data>
+        >,
+        Mixin::IterativeRefinements , Mixin::Verbosity , Mixin::Eps< real_t<Domain> >
+      >::type
   {
     using Interface<Data>::data_;
   public:
@@ -74,14 +83,35 @@ namespace Dune
     template <class... Args>
     GenericStep(Args&&... args)
       : Interface<Data>(std::forward<Args>(args)...)
-    {}
+    {
+      initializeConnections();
+    }
+
+    GenericStep(const GenericStep& other)
+      : Interface<Data>(other.data_)
+    {
+      initializeConnections();
+    }
+
+    GenericStep& operator=(const GenericStep& other)
+    {
+      Interface<Data>::operator=(other.data_);
+      initializeConnections();
+    }
+
+    GenericStep& operator=(GenericStep&& other)
+    {
+      Interface<Data>::operator=(std::move(other.data_));
+      initializeConnections();
+    }
+
+    GenericStep(GenericStep&& other)
+      : Interface<Data>(std::move(other.data_))
+    {
+      initializeConnections();
+    }
 
     /*!
-      @brief Initialize conjugate gradient step.
-
-      This method must be called before starting the conjugate gradient iteration.
-      It is responsible for initializing the relevant quantities.
-
       @param x initial iterate
       @param b initial right hand side
      */
@@ -107,7 +137,7 @@ namespace Dune
       applyPreconditioner_(data_);
       computeSearchDirection_(data_);
       computeScaling_(data_);
-      treatNonconvexity_(data_,x,this->verbosityLevel());
+      treatNonconvexity_(data_,x);
       updateIterate_(data_,x);
       adjustData_(data_,x);
     }
@@ -122,6 +152,19 @@ namespace Dune
     }
 
   private:
+    void initializeConnections()
+    {
+      using namespace Mixin;
+      Optional::Mixin::Attach< IterativeRefinements , Verbosity , Eps<real_type> >::apply(*this,
+                                                                                          applyPreconditioner_,
+                                                                                          computeSearchDirection_,
+                                                                                          computeScaling_,
+                                                                                          treatNonconvexity_,
+                                                                                          updateIterate_,
+                                                                                          adjustData_,
+                                                                                          data_);
+    }
+
     ApplyPreconditioner applyPreconditioner_;
     SearchDirection computeSearchDirection_;
     Scaling computeScaling_;

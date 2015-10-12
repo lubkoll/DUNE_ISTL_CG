@@ -1,6 +1,8 @@
 #ifndef DUNE_MIXIN_ITERATIVE_REFINEMENTS_HH
 #define DUNE_MIXIN_ITERATIVE_REFINEMENTS_HH
 
+#include "mixinConnection.hh"
+
 namespace Dune
 {
   namespace Mixin
@@ -9,7 +11,7 @@ namespace Dune
      * @ingroup MixinGroup
      * @brief %Mixin class for iterative refinements.
      */
-    class IterativeRefinements
+    class IterativeRefinements : public MixinConnection<IterativeRefinements>
     {
     public:
       /**
@@ -27,6 +29,7 @@ namespace Dune
       void setIterativeRefinements(unsigned refinements) noexcept
       {
         iterativeRefinements_ = refinements;
+        notify();
       }
 
       /**
@@ -36,6 +39,12 @@ namespace Dune
       unsigned iterativeRefinements() const noexcept
       {
         return iterativeRefinements_;
+      }
+
+      //! Update function for a simplified observer pattern
+      void update(IterativeRefinements* changed)
+      {
+        setIterativeRefinements( changed->iterativeRefinements() );
       }
 
     private:

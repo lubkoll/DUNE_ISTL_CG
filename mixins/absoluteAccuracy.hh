@@ -4,6 +4,8 @@
 #include <cassert>
 #include <limits>
 
+#include "mixinConnection.hh"
+
 namespace Dune
 {
   namespace Mixin
@@ -13,7 +15,7 @@ namespace Dune
      * @brief %Mixin class for absolute accuracy.
      */
     template <class real_type=double>
-    class AbsoluteAccuracy
+    class AbsoluteAccuracy : public MixinConnection< AbsoluteAccuracy<real_type> >
     {
     public:
       /**
@@ -32,8 +34,9 @@ namespace Dune
        */
       void setAbsoluteAccuracy(real_type accuracy)
       {
+        assert(accuracy >= 0);
         absoluteAccuracy_ = accuracy;
-        assert(absoluteAccuracy_ >= 0);
+        this->notify();
       }
 
       /**
@@ -43,6 +46,12 @@ namespace Dune
       real_type absoluteAccuracy() const
       {
         return absoluteAccuracy_;
+      }
+
+      //! Update function for a simplified observer pattern with MixinConnection.
+      void update(AbsoluteAccuracy* changed)
+      {
+        setAbsoluteAccuracy( changed->absoluteAccuracy() );
       }
 
     private:

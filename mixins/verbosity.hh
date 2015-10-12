@@ -1,6 +1,8 @@
 #ifndef DUNE_MIXIN_VERBOSITY_HH
 #define DUNE_MIXIN_VERBOSITY_HH
 
+#include "mixinConnection.hh"
+
 namespace Dune
 {
   namespace Mixin
@@ -9,7 +11,7 @@ namespace Dune
      * @ingroup MixinGroup
      * @brief %Mixin class for verbosity.
      */
-    class Verbosity
+    class Verbosity : public MixinConnection<Verbosity>
     {
     public:
       /**
@@ -28,6 +30,7 @@ namespace Dune
       {
         if( verbose ) verbosityLevel_ = 1;
         else verbosityLevel_ = 0;
+        notify();
       }
 
       /**
@@ -46,6 +49,7 @@ namespace Dune
       void setVerbosityLevel(unsigned level) noexcept
       {
         verbosityLevel_ = level;
+        notify();
       }
 
       /**
@@ -55,6 +59,12 @@ namespace Dune
       unsigned verbosityLevel() const noexcept
       {
         return verbosityLevel_;
+      }
+
+      //! Update function for a simplified observer pattern
+      void update(Verbosity* changed)
+      {
+        setVerbosityLevel(changed->verbosityLevel());
       }
 
     private:

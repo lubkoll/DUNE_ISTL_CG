@@ -7,7 +7,7 @@
 #include "generic_iterative_method.hh"
 #include "generic_step.hh"
 #include "relative_energy_termination_criterion.hh"
-#include "Mixins/iterativeRefinements.hh"
+#include "mixins/iterativeRefinements.hh"
 
 namespace Dune
 {
@@ -22,14 +22,27 @@ namespace Dune
       Data(LinearOperator<Domain,Range>& A,
            Preconditioner<Domain,Range>& P,
            ScalarProduct<Domain>& sp)
-        : A_(A), P_(P), ssp_(), sp_(sp)
+        : A_(&A), P_(&P), ssp_(), sp_(&sp)
       {}
 
       Data(LinearOperator<Domain,Range>& A,
            Preconditioner<Domain,Range>& P)
-        : A_(A), P_(P), ssp_(), sp_(ssp_)
+        : A_(&A), P_(&P), ssp_(), sp_(&ssp_)
       {}
 
+      Data(Data&&) = default;
+      Data& operator=(Data&&) = default;
+
+      Data(const Data& data)
+        : A_(data.A_), P_(data.P_), ssp_(), sp_(data.sp_)
+      {}
+
+      Data& operator=(const Data& data)
+      {
+        A_ = data.A_;
+        P_ = data.P_;
+        sp_ = data.sp_;
+      }
 
       void init(Domain& x, Range& b)
       {
@@ -37,7 +50,7 @@ namespace Dune
         Adx_ = std::make_unique<Range>(b); *Adx_ *= 0.,
         Pr_ = std::make_unique<Domain>(x); *Pr_ *= 0.;
         r_ = std::make_unique<Range>(b);
-        A_.applyscaleadd(-1.,x,*r_);
+        A_->applyscaleadd(-1.,x,*r_);
       }
 
       void reset(Domain& x, Range& b)
@@ -46,13 +59,13 @@ namespace Dune
         *Adx_ *= 0.;
         *Pr_ *= 0.;
         r_ = std::make_unique<Range>(b);
-        A_.applyscaleadd(-1.,x,*r_);
+        A_->applyscaleadd(-1.,x,*r_);
       }
 
-      LinearOperator<Domain,Range>& A_;
-      Preconditioner<Domain,Range>& P_;
+      LinearOperator<Domain,Range>* A_;
+      Preconditioner<Domain,Range>* P_;
       SeqScalarProduct<Domain> ssp_;
-      ScalarProduct<Domain>& sp_;
+      ScalarProduct<Domain>* sp_;
 
       std::unique_ptr<Range> r_ = nullptr, Adx_ = nullptr;
       std::unique_ptr<Domain> Pr_ = nullptr, dx_ = nullptr;
@@ -102,7 +115,7 @@ namespace Dune
       //! @brief Access norm of residual with respect to the employed scalar product (in general the l2-norm), i.e. \f$\|r\|_2\f$, where \f$r=b-Ax\f$.
       auto residualNorm()
       {
-        return data_.sp_.norm(*data_.r_);
+        return data_.sp_->norm(*data_.r_);
       }
 
     protected:
@@ -125,30 +138,35 @@ namespace Dune
         assert(data.r_ != nullptr);
         assert(data.Pr_ != nullptr);
 
-        data.P_.apply(*data.Pr_,*data.r_);
-        for(auto i=0u; i<iterativeRefinements(); ++i)
+        data.P_->apply(*data.Pr_,*data.r_);
+
+        if( iterativeRefinements() > 0 )
         {
-          data.A_.applyscaleadd(-1.,*data.Pr_,*data.r_);
-          auto dQr = *data.r_;
-          data.P_.apply(dQr,*data.r_);
-          *data.Pr_ += dQr;
+          auto r2 = *data.r_;
+          auto dQr = *data.Pr_;
+          for(auto i=0u; i<iterativeRefinements(); ++i)
+          {
+            data.A_->applyscaleadd(-1.,*data.Pr_,r2);
+            data.P_->apply(dQr,r2);
+            *data.Pr_ += dQr;
+          }
         }
 
         using std::abs;
         if( data.sigma_ < 0 )
-          data.sigma_ = abs( data.sp_.dot(*data.r_,*data.Pr_) );
+          data.sigma_ = abs( data.sp_->dot(*data.r_,*data.Pr_) );
       }
 
       template <class Data, class Domain, class Range>
       void pre(Data& data, Domain& x, Range& b) const
       {
-        data.P_.pre(x,b);
+        data.P_->pre(x,b);
       }
 
       template <class Data, class Domain>
       void post(Data& data, Domain& x) const
       {
-        data.P_.post(x);
+        data.P_->post(x);
       }
     };
 
@@ -168,7 +186,7 @@ namespace Dune
         }
 
         using std::abs;
-        auto newSigma = abs( data.sp_.dot(*data.r_,*data.Pr_) );
+        auto newSigma = abs( data.sp_->dot(*data.r_,*data.Pr_) );
         data.beta_ = newSigma/data.sigma_;
         *data.dx_ *= data.beta_; *data.dx_ += *data.Pr_;
         data.sigma_ = newSigma;
@@ -180,8 +198,8 @@ namespace Dune
       template <class Data>
       void computeInducedStepLength(Data& data) const
       {
-        data.A_.apply(*data.dx_,*data.Adx_);
-        data.dxAdx_ = data.sp_.dot(*data.dx_,*data.Adx_);
+        data.A_->apply(*data.dx_,*data.Adx_);
+        data.dxAdx_ = data.sp_->dot(*data.dx_,*data.Adx_);
       }
     };
 
@@ -194,27 +212,6 @@ namespace Dune
       void operator()(Data& data) const
       {
         data.alpha_ = data.sigma_/data.dxAdx_;
-      }
-    };
-
-
-    //! Throw std::runtime_error if a direction of non-positive curvature is encountered.
-    class TreatNonconvexity
-    {
-    public:
-      template <class Data, class Domain>
-      void operator()(const Data& data, Domain&, unsigned verbosityLevel) const
-      {
-        if (data.dxAdx_ > 0 ) return;
-
-        if( verbosityLevel > 0 )
-        {
-          std::cout << "    " << "non-positive curvature: " << data.dxAdx_ << std::endl;
-          std::cout << "    " << "Direction of non-positive curvature encountered in standard CG Implementation!" << std::endl;
-          std::cout << "    " << "Either something is wrong with your operator or you should use TCG, RCG or TRCG. Terminating CG!" << std::endl;
-        }
-
-        throw std::runtime_error("Non-positive curvature encountered in conjugate gradient method.");
       }
     };
 
@@ -249,7 +246,7 @@ namespace Dune
       ApplyPreconditioner,
       SearchDirection,
       Scaling,
-      TreatNonconvexity,
+      GenericStepDetail::Ignore,
       UpdateIterate,
       UpdateResidual,
       Data<Domain,Range>,

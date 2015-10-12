@@ -10,6 +10,7 @@
 #include "operator_type.hh"
 #include "relative_energy_termination_criterion.hh"
 #include "util.hh"
+#include "mixins/verbosity.hh"
 
 namespace Dune
 {
@@ -82,15 +83,15 @@ namespace Dune
 
 
     //! Truncate at directions of non-positive curvature.
-    class TreatNonconvexity
+    class TreatNonconvexity : public Mixin::Verbosity
     {
     public:
       template <class Data, class Domain>
-      void operator()(Data& data, Domain& x, unsigned verbosityLevel) const
+      void operator()(Data& data, Domain& x) const
       {
         if( data.dxAdx_ > 0 ) return;
 
-        if( verbosityLevel > 1 )
+        if( verbosityLevel() > 1 )
           std::cout << "    " << "Truncating at nonconvexity" << std::endl;
         // At least do something to retain a little chance to get out of the nonconvexity. If a nonconvexity is encountered in the first step something probably went wrong
         // elsewhere. Chances that a way out of the nonconvexity can be found are small in this case.

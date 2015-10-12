@@ -11,6 +11,7 @@
 #include "relative_energy_termination_criterion.hh"
 #include "tcg_solver.hh"
 #include "util.hh"
+#include "mixins/verbosity.hh"
 
 namespace Dune
 {
@@ -113,7 +114,7 @@ namespace Dune
         CGSpec::SearchDirection::operator()(data);
 
         // adjust energy norm of correction
-        data.dxPdx_ = data.sp_.dot(*data.dx_,*data.Pdx_);
+        data.dxPdx_ = data.sp_->dot(*data.dx_,*data.Pdx_);
         data.dxAdx_ += data.theta_ * data.dxPdx_;
         // adjust preconditioned correction
         *data.Pdx_ *= data.beta_;
@@ -136,24 +137,26 @@ namespace Dune
 
 
     //! Regularize if a direction of non-positive curvature is encountered.
-    class TreatNonconvexity
+    template <class real_type>
+    class TreatNonconvexity :
+        public Mixin::Eps<real_type>,
+        public Mixin::Verbosity
     {
     public:
       template <class Data, class Domain>
-      void operator()(Data& data, Domain&, int verbosityLevel) const
+      void operator()(Data& data, Domain&) const
       {
         if (data.dxAdx_ > 0 ) return;
 
-        if( verbosityLevel > 1 )
-          std::cout << "    Regularizing at nonconvexity" << std::endl;
-        auto oldTheta = data.theta_ > 0 ? data.theta_ : std::numeric_limits<decltype(data.theta_)>::epsilon();
+        if( verbosityLevel() > 1 )
+          std::cout << "    Regularizing at nonconvexity: " << data.dxAdx_ << std::endl;
+        auto oldTheta = data.theta_ > 0 ? data.theta_ : this->eps();
         using std::abs;
         data.theta_ += (1-data.dxAdx_)/abs(data.dxPdx_);
-        if( verbosityLevel > 1 ) std::cout << "Computed regularization parameter: " << data.theta_ << std::endl;
         using std::min;
         using std::max;
         data.theta_ = min(max(data.minIncrease_*oldTheta,data.theta_),data.maxIncrease_*oldTheta);
-        if( verbosityLevel > 1 ) std::cout << "Updating regularization parameter from " << oldTheta << " to " << data.theta_ << std::endl;
+        if( verbosityLevel() > 1 ) std::cout << "Updating regularization parameter from " << oldTheta << " to " << data.theta_ << std::endl;
 
         data.operatorType_ = OperatorType::Indefinite;
         data.doRestart_ = true;
@@ -168,7 +171,7 @@ namespace Dune
       CGSpec::ApplyPreconditioner,
       SearchDirection,
       CGSpec::Scaling,
-      TreatNonconvexity,
+      TreatNonconvexity< real_t<Domain> >,
       CGSpec::UpdateIterate,
       UpdateResidual,
       Data<Domain,Range>,

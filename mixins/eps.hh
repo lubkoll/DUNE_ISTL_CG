@@ -5,6 +5,8 @@
 #include <cmath>
 #include <limits>
 
+#include "mixinConnection.hh"
+
 namespace Dune
 {
   namespace Mixin
@@ -14,7 +16,7 @@ namespace Dune
      * @brief %Mixin class for maximal attainable accuracy \f$\varepsilon\f$.
      */
     template <class real_type=double>
-    class Eps
+    class Eps : public MixinConnection< Eps<real_type> >
     {
     public:
       /**
@@ -33,8 +35,9 @@ namespace Dune
        */
       void setEps(real_type eps)
       {
+        assert(eps > 0);
         eps_ = eps;
-        assert(eps_ > 0);
+        this->notify();
       }
 
       /**
@@ -62,6 +65,12 @@ namespace Dune
       real_type cbrtEps() const
       {
         return cbrt(eps_);
+      }
+
+      //! Update function for a simplified observer pattern
+      void update(Eps* changed)
+      {
+        setEps( changed->eps() );
       }
 
     private:

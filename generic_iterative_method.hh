@@ -6,17 +6,18 @@
 #include <ostream>
 #include <utility>
 
+#include "optional.hh"
+#include "tmp/logic.hh"
+#include "tmp/optional_base_class.hh"
 #include "voider.hh"
 #include "util.hh"
-#include "Mixins/maxSteps.hh"
-#include "Mixins/verbosity.hh"
+#include "mixins.hh"
 
 namespace Dune
 {
-  /**
-   * \cond
-   */
+  //! @cond
   class InverseOperatorResult;
+  //! @endcond
 
   inline std::ostream& operator<<(std::ostream& os, const InverseOperatorResult& res)
   {
@@ -28,142 +29,23 @@ namespace Dune
     return os;
   }
 
-  namespace GenericIterativeMethodDetail
-  {
-    template <class Type>
-    using TryMemFn_Terminate = decltype( std::declval<Type>().terminate() );
-
-    template <class ToConnect, class Connector>
-    using TryMemFn_Connect = decltype(std::declval<Connector>().connect(std::declval<ToConnect>()));
-
-    template <class Type>
-    using TryMemFn_MinimalDecreaseAchieved = decltype( std::declval<Type>().minimalDecreaseAchieved() );
-
-    template <class Type>
-    using TryMemFn_Restart = decltype(std::declval<Type>().restart());
-
-    template <class Type, class = void>
-    struct HasMemFn_MinimalDecreaseAchieved : public std::false_type {};
-
-    template <class Type>
-    struct HasMemFn_MinimalDecreaseAchieved< Type , void_t< TryMemFn_MinimalDecreaseAchieved<Type> > > : public std::true_type {};
-
-    template <class Type, bool hasMember = HasMemFn_MinimalDecreaseAchieved<Type>::value>
-    struct BindMemFn_MinimalDecreaseAchieved
-    {
-      static std::function<bool()> apply(const Type& t)
-      {
-        return std::bind(&Type::minimalDecreaseAchieved,&t);
-      }
-    };
-
-    template <class Type>
-    struct BindMemFn_MinimalDecreaseAchieved<Type,false>
-    {
-      static std::function<bool()> apply(const Type&)
-      {
-        return std::function<bool()>{};
-      }
-    };
-
-    template <class Type, class = void>
-    struct OptionalTerminate
-    {
-      static bool apply(const Type&)
-      {
-        return false;
-      }
-    };
-
-    template <class Type>
-    struct OptionalTerminate< Type , void_t< TryMemFn_Terminate<Type> > >
-    {
-      static bool apply(const Type& t)
-      {
-        return t.terminate();
-      }
-    };
-
-    template <class Type>
-    bool optional_terminate(const Type& t)
-    {
-      return OptionalTerminate<Type>::apply(t);
-    }
-
-
-    template <class Type, class = void>
-    struct OptionalRestart
-    {
-      static bool apply(const Type&)
-      {
-        return false;
-      }
-    };
-
-    template <class Type>
-    struct OptionalRestart< Type , void_t< TryMemFn_Restart<Type> > >
-    {
-      static bool apply(const Type& t)
-      {
-        return t.restart();
-      }
-    };
-
-    template <class Type>
-    bool optional_restart(const Type& t)
-    {
-      return OptionalRestart<Type>::apply(t);
-    }
-
-
-    template <class ToConnect, class Connector, class = void>
-    struct ConnectIfPossible
-    {
-      static void apply(const ToConnect&, Connector&)
-      {}
-    };
-
-    template <class ToConnect, class Connector>
-    struct ConnectIfPossible< ToConnect , Connector , void_t<TryMemFn_Connect<ToConnect,Connector> > >
-    {
-      static void apply(const ToConnect& toConnect, Connector& connector)
-      {
-        connector.connect(toConnect);
-      }
-    };
-
-
-    template <class ToConnect, class Connector>
-    void connect_if_possible(const ToConnect& toConnect, Connector& connector)
-    {
-      ConnectIfPossible<ToConnect,Connector>::apply(toConnect,connector);
-    }
-
-
-    template <class ToConnect, class Connector>
-    void bind_connect_if_possible(const ToConnect& toConnect, Connector& connector)
-    {
-      auto relaxedTerminationCriterion = BindMemFn_MinimalDecreaseAchieved<ToConnect>::apply(toConnect);
-      if( relaxedTerminationCriterion )
-        connect_if_possible(relaxedTerminationCriterion,connector);
-    }
-  }
-  /**
-   * \endcond
-   */
-
 
   /*!
     @ingroup ISTL_Solvers
     @brief Generic wrapper for iterative methods.
    */
   template <class Step_,
-            class TerminationCriterion_>
+            class TerminationCriterion_,
+            class real_type = real_t<typename Step_::domain_type> >
   class GenericIterativeMethod :
       public Step_ ,
       public InverseOperator<typename Step_::domain_type, typename Step_::range_type> ,
       public Mixin::MaxSteps ,
-      public DeriveFromBaseIfNotAmbiguous<Step_,Mixin::Verbosity>
+      public TMP::ComposeClass<
+        typename TMP::BaseClassesIf< TMP::And< TMP::IsNotBaseOf<Step_> , TMP::IsBaseOf<TerminationCriterion_> > ,
+          Mixin::RelativeAccuracy<real_type>, Mixin::AbsoluteAccuracy<real_type>, Mixin::MinimalAccuracy<real_type>, Mixin::Eps<real_type> >::type,
+        typename TMP::BaseClassesIf< TMP::IsNotBaseOf<Step_>,Mixin::Verbosity>::type
+      >::type
   {
   public:
     using Step = Step_;
@@ -171,37 +53,82 @@ namespace Dune
     using domain_type = typename Step::domain_type;
     using range_type  = typename Step::range_type;
     using field_type  = field_t<domain_type>;
-    using real_type   = real_t<Step>;
 
     /*!
       @param step object implementing one step of an iterative scheme
       @param terminate termination criterion
+      @param maxSteps
      */
     GenericIterativeMethod(Step step, TerminationCriterion terminate, unsigned maxSteps = 1000)
       : Step(std::move(step)) ,
         Mixin::MaxSteps(maxSteps) ,
         terminate_(std::move(terminate))
     {
-      terminate_.connect(*this);
-      GenericIterativeMethodDetail::bind_connect_if_possible(terminate_,*this);
+      initializeConnections();
     }
 
     template <class Operator, class Preconditioner, class ScalarProduct,
-              class = std::enable_if_t<std::is_constructible<Step,Operator,Preconditioner,ScalarProduct>::value> >
+              std::enable_if_t<std::is_constructible<Step,Operator,Preconditioner,ScalarProduct>::value>* = nullptr >
     GenericIterativeMethod(Operator&& A, Preconditioner&& P, ScalarProduct&& sp, TerminationCriterion terminate, unsigned maxSteps = 1000)
       : GenericIterativeMethod( Step(std::forward<Operator>(A),std::forward<Preconditioner>(P),std::forward<ScalarProduct>(sp)) ,
                                 std::move(terminate) , maxSteps )
     {}
 
+    template <class Operator, class Preconditioner, class ScalarProduct,
+              std::enable_if_t<std::is_constructible<Step,Operator,Preconditioner,ScalarProduct>::value && std::is_default_constructible<TerminationCriterion>::value>* = nullptr >
+    GenericIterativeMethod(Operator&& A, Preconditioner&& P, ScalarProduct&& sp, unsigned maxSteps = 1000)
+      : GenericIterativeMethod( Step(std::forward<Operator>(A),std::forward<Preconditioner>(P),std::forward<ScalarProduct>(sp)) ,
+                                TerminationCriterion() , maxSteps )
+    {}
+
     template <class Operator, class Preconditioner,
-              class = std::enable_if_t<std::is_constructible<Step,Operator,Preconditioner>::value> >
+              std::enable_if_t<std::is_constructible<Step,Operator,Preconditioner>::value>* = nullptr >
     GenericIterativeMethod(Operator&& A, Preconditioner&& P, TerminationCriterion terminate, unsigned maxSteps = 1000)
       : GenericIterativeMethod( Step(std::forward<Operator>(A),std::forward<Preconditioner>(P)) ,
                                 std::move(terminate) , maxSteps )
     {}
 
+    template <class Operator, class Preconditioner,
+              std::enable_if_t<std::is_constructible<Step,Operator,Preconditioner>::value && std::is_default_constructible<TerminationCriterion>::value>* = nullptr >
+    GenericIterativeMethod(Operator&& A, Preconditioner&& P, unsigned maxSteps = 1000)
+      : GenericIterativeMethod( Step(std::forward<Operator>(A),std::forward<Preconditioner>(P)) ,
+                                TerminationCriterion() , maxSteps )
+    {}
+
+//    GenericIterativeMethod(const GenericIterativeMethod& other)
+//      : Step(other),
+//        Mixin::MaxSteps(other),
+//        terminate_(other.terminate_)
+//    {
+//      initializeConnections();
+//    }
+
+//    GenericIterativeMethod(GenericIterativeMethod&& other)
+//      : Step(std::move(other)),
+//        Mixin::MaxSteps(std::move(other)),
+//        terminate_(std::move(other.terminate_))
+//    {
+//      initializeConnections();
+//    }
+
+//    GenericIterativeMethod& operator=(const GenericIterativeMethod& other)
+//    {
+//      Step::operator=(other);
+//      Mixin::MaxSteps::operator=(other);
+//      terminate_ = other.terminate_;
+//      initializeConnections();
+//    }
+
+//    GenericIterativeMethod& operator=(GenericIterativeMethod&& other)
+//    {
+//      Step::operator=(std::move(other));
+//      Mixin::MaxSteps::operator=(std::move(other));
+//      terminate_ = std::move(other.terminate_);
+//      initializeConnections();
+//    }
+
     /*!
-      @brief Apply loop solver to solve \f$Ax=b\f$.
+      @brief Apply iterative method to solve \f$Ax=b\f$.
       @param x initial iterate
       @param b initial right hand side
       @param res some statistics
@@ -220,8 +147,8 @@ namespace Dune
       {
         computeStep(x,b);
 
-        if( terminate_ || GenericIterativeMethodDetail::optional_terminate(*this) ) break;
-        if( GenericIterativeMethodDetail::optional_restart(*this) )
+        if( terminate_ || Optional::terminate(*this) ) break;
+        if( Optional::restart(*this) )
         {
           restoreInitialInput(x,b);
           Step::reset(x,b);
@@ -242,7 +169,7 @@ namespace Dune
     }
 
     /*!
-      @brief Apply loop solver to solve \f$Ax=b\f$.
+      @brief Apply iterative method to solve \f$Ax=b\f$.
       @param x initial iterate
       @param b initial right hand side
       @param relativeAccuracy required relative accuracy
@@ -255,7 +182,7 @@ namespace Dune
     }
 
     /*!
-      @brief Apply loop solver to solve \f$Ax=b\f$.
+      @brief Apply iterative method to solve \f$Ax=b\f$.
       @param x initial iterate
       @param b initial right hand side
      */
@@ -265,15 +192,22 @@ namespace Dune
       apply(x,b,res);
     }
 
-    /*!
-      @brief Access termination criterion.
-     */
+    //! Access termination criterion.
     TerminationCriterion& terminationCriterion()
     {
       return terminate_;
     }
 
   private:
+    void initializeConnections()
+    {
+      terminate_.connect(*this);
+      Optional::bind_connect_minimalDecreaseAchieved(terminate_,*this);
+
+      using namespace Mixin;
+      Optional::Mixin::Attach< AbsoluteAccuracy<real_type>, MinimalAccuracy<real_type>, RelativeAccuracy<real_type> , Verbosity , Eps<real_type> >::apply(*this,terminate_);
+    }
+
     void storeInitialInput(const domain_type& x, const range_type& b)
     {
       x0 = std::make_unique<domain_type>(x);

@@ -1,13 +1,13 @@
 #ifndef DUNE_MIXINS_HH
 #define DUNE_MIXINS_HH
 
-#include "Mixins/absoluteAccuracy.hh"
-#include "Mixins/eps.hh"
-#include "Mixins/iterativeRefinements.hh"
-#include "Mixins/maxSteps.hh"
-#include "Mixins/minimalAccuracy.hh"
-#include "Mixins/relativeAccuracy.hh"
-#include "Mixins/verbosity.hh"
+#include "mixins/absoluteAccuracy.hh"
+#include "mixins/eps.hh"
+#include "mixins/iterativeRefinements.hh"
+#include "mixins/maxSteps.hh"
+#include "mixins/minimalAccuracy.hh"
+#include "mixins/relativeAccuracy.hh"
+#include "mixins/verbosity.hh"
 
 #endif // DUNE_MIXINS_HH
 

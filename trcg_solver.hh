@@ -67,25 +67,26 @@ namespace Dune
 
 
     //! Regularize or truncate at directions of non-positive curvature.
-    class TreatNonconvexity : public RCGSpec::TreatNonconvexity
+    template <class real_type>
+    class TreatNonconvexity : public RCGSpec::TreatNonconvexity<real_type>
     {
     public:
       template <class Data, class Domain>
-      void operator()(Data& data, Domain& x, unsigned verbosityLevel)
+      void operator()(Data& data, Domain& x)
       {
         if( data.dxAdx_ > 0 ) return;
 
         assert(data.minimalDecreaseAchieved_);
         if( data.minimalDecreaseAchieved_() )
         {
-          if( verbosityLevel > 1 )
-            std::cout << "    " << "Truncating at nonconvexity" << std::endl;
+          if( this->verbosityLevel() > 1 )
+            std::cout << "    " << "Truncating at nonconvexity." << std::endl;
           data.operatorType_ = OperatorType::Indefinite;
           data.doTerminate_ = true;
           return;
         }
 
-        RCGSpec::TreatNonconvexity::operator()(data,x,verbosityLevel);
+        RCGSpec::TreatNonconvexity<real_type>::operator()(data,x);
       }
     };
 
@@ -96,7 +97,7 @@ namespace Dune
       CGSpec::ApplyPreconditioner,
       RCGSpec::SearchDirection,
       CGSpec::Scaling,
-      TreatNonconvexity,
+      TreatNonconvexity< real_t<Domain> >,
       CGSpec::UpdateIterate,
       RCGSpec::UpdateResidual,
       Data<Domain,Range>,

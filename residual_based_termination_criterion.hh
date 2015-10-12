@@ -10,9 +10,9 @@
 
 #include <dune/common/timer.hh>
 
-#include "Mixins/eps.hh"
-#include "Mixins/relativeAccuracy.hh"
-#include "Mixins/verbosity.hh"
+#include "mixins/eps.hh"
+#include "mixins/relativeAccuracy.hh"
+#include "mixins/verbosity.hh"
 #include "util.hh"
 
 namespace Dune

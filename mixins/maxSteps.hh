@@ -1,6 +1,8 @@
 #ifndef DUNE_MIXIN_MAXSTEPS_HH
 #define DUNE_MIXIN_MAXSTEPS_HH
 
+#include "mixinConnection.hh"
+
 namespace Dune
 {
   namespace Mixin
@@ -9,7 +11,7 @@ namespace Dune
      * @ingroup MixinGroup
      * @brief %Mixin class for maximal number of steps/iterations.
      */
-    class MaxSteps
+    class MaxSteps : public MixinConnection<MaxSteps>
     {
     public:
       /**
@@ -27,6 +29,7 @@ namespace Dune
       void setMaxSteps(unsigned maxSteps) noexcept
       {
         maxSteps_ = maxSteps;
+        notify();
       }
 
       /**
@@ -36,6 +39,12 @@ namespace Dune
       unsigned maxSteps() const noexcept
       {
         return maxSteps_;
+      }
+
+      //! Update function for a simplified observer pattern
+      void update(MaxSteps* changed)
+      {
+        setMaxSteps( changed->maxSteps() );
       }
 
     private:

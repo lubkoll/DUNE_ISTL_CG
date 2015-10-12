@@ -3,6 +3,8 @@
 
 #include <cassert>
 
+#include "mixinConnection.hh"
+
 namespace Dune
 {
   namespace Mixin
@@ -12,7 +14,7 @@ namespace Dune
      * @brief %Mixin class for minimal accuracy.
      */
     template <class real_type=double>
-    class MinimalAccuracy
+    class MinimalAccuracy : public MixinConnection< MinimalAccuracy<real_type> >
     {
     public:
       /**
@@ -31,8 +33,9 @@ namespace Dune
        */
       void setMinimalAccuracy(real_type accuracy)
       {
+        assert(accuracy >= 0);
         minimalAccuracy_ = accuracy;
-        assert(minimalAccuracy_ >= 0);
+        this->notify();
       }
 
       /**
@@ -42,6 +45,12 @@ namespace Dune
       real_type minimalAccuracy() const
       {
         return minimalAccuracy_;
+      }
+
+      //! Update function for a simplified observer pattern
+      void update(MinimalAccuracy* changed)
+      {
+        setMinimalAccuracy( changed->minimalAccuracy() );
       }
 
     private:
