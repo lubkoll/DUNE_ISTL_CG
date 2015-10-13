@@ -19,16 +19,21 @@ namespace Dune
     {
       using real_type = real_t<Domain>;
 
-      Data(LinearOperator<Domain,Range>& A,
-           Preconditioner<Domain,Range>& P,
-           ScalarProduct<Domain>& sp)
+      template <class LinOp, class Prec, class SP>
+      Data(LinOp& A, Prec& P, SP& sp)
         : A_(&A), P_(&P), ssp_(), sp_(&sp)
-      {}
+      {
+        static_assert( LinOp::category == Prec::category , "Linear operator and preconditioner are required to belong to the same category!" );
+        static_assert( LinOp::category == SolverCategory::sequential , "Linear operator must be sequential!" );
+      }
 
-      Data(LinearOperator<Domain,Range>& A,
-           Preconditioner<Domain,Range>& P)
+      template <class LinOp, class Prec>
+      Data(LinOp& A,  Prec& P)
         : A_(&A), P_(&P), ssp_(), sp_(&ssp_)
-      {}
+      {
+        static_assert( LinOp::category == Prec::category , "Linear operator and preconditioner are required to belong to the same category!" );
+        static_assert( LinOp::category == SolverCategory::sequential , "Linear operator must be sequential!" );
+      }
 
       Data(Data&&) = default;
       Data& operator=(Data&&) = default;
