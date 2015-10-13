@@ -81,7 +81,7 @@ namespace Dune
         {
           if( this->verbosityLevel() > 1 )
             std::cout << "    " << "Truncating at nonconvexity." << std::endl;
-          data.dxAdx_ = 0;
+          data.alpha_ = 0;
           data.operatorType_ = OperatorType::Indefinite;
           data.doTerminate_ = true;
           return;

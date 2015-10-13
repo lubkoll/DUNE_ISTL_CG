@@ -63,7 +63,7 @@ namespace Dune
       public Interface<Data>,
       public TMP::BaseClassesIf<
         TMP::OrUnaryToSequence<
-          TMP::IsBaseOf ,
+          TMP::IsDerivedFrom ,
           TMP::Sequence<ApplyPreconditioner,SearchDirection,Scaling,TreatNonconvexity,UpdateIterate,AdjustData,Data>
         >,
         Mixin::IterativeRefinements , Mixin::Verbosity , Mixin::Eps< real_t<Domain> >

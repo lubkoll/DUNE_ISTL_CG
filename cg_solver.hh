@@ -49,7 +49,7 @@ namespace Dune
         dx_ = nullptr;
         Adx_ = std::make_unique<Range>(b); *Adx_ *= 0.,
         Pr_ = std::make_unique<Domain>(x); *Pr_ *= 0.;
-        r_ = std::make_unique<Range>(b);
+        r_ = &b;//std::make_unique<Range>(b);
         A_->applyscaleadd(-1.,x,*r_);
       }
 
@@ -58,7 +58,7 @@ namespace Dune
         dx_ = nullptr;
         *Adx_ *= 0.;
         *Pr_ *= 0.;
-        r_ = std::make_unique<Range>(b);
+        r_ = &b;//std::make_unique<Range>(b);
         A_->applyscaleadd(-1.,x,*r_);
       }
 
@@ -67,7 +67,8 @@ namespace Dune
       SeqScalarProduct<Domain> ssp_;
       ScalarProduct<Domain>* sp_;
 
-      std::unique_ptr<Range> r_ = nullptr, Adx_ = nullptr;
+      std::unique_ptr<Range> Adx_ = nullptr;
+      Range* r_ = nullptr;
       std::unique_ptr<Domain> Pr_ = nullptr, dx_ = nullptr;
       real_type alpha_ = -1, beta_ = -1, sigma_ = -1, dxAdx_ = -1;
     };

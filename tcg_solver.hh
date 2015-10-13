@@ -98,7 +98,7 @@ namespace Dune
         if( data.performBlindUpdate_ )
           x += *data.dx_;
 
-        data.dxAdx_ = 0;
+        data.alpha_ = 0;
         data.doTerminate_ = true;
         data.operatorType_ = OperatorType::Indefinite;
       }

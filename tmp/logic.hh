@@ -51,7 +51,7 @@ namespace Dune
 
 
     template <class Derived>
-    struct IsBaseOf
+    struct IsDerivedFrom
     {
       template <class Base>
       struct apply
@@ -62,7 +62,7 @@ namespace Dune
 
 
     template <class Derived>
-    struct IsNotBaseOf
+    struct IsNotDerivedFrom
     {
       template <class Base>
       struct apply

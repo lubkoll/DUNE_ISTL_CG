@@ -158,6 +158,7 @@ namespace Dune
         data.theta_ = min(max(data.minIncrease_*oldTheta,data.theta_),data.maxIncrease_*oldTheta);
         if( verbosityLevel() > 1 ) std::cout << "Updating regularization parameter from " << oldTheta << " to " << data.theta_ << std::endl;
 
+        data.alpha_ = 0;
         data.operatorType_ = OperatorType::Indefinite;
         data.doRestart_ = true;
       }

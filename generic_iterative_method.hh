@@ -42,9 +42,9 @@ namespace Dune
       public InverseOperator<typename Step_::domain_type, typename Step_::range_type> ,
       public Mixin::MaxSteps ,
       public TMP::ComposeClass<
-        typename TMP::BaseClassesIf< TMP::And< TMP::IsNotBaseOf<Step_> , TMP::IsBaseOf<TerminationCriterion_> > ,
+        typename TMP::BaseClassesIf< TMP::And< TMP::IsNotDerivedFrom<Step_> , TMP::IsDerivedFrom<TerminationCriterion_> > ,
           Mixin::RelativeAccuracy<real_type>, Mixin::AbsoluteAccuracy<real_type>, Mixin::MinimalAccuracy<real_type>, Mixin::Eps<real_type> >::type,
-        typename TMP::BaseClassesIf< TMP::IsNotBaseOf<Step_>,Mixin::Verbosity>::type
+        typename TMP::BaseClassesIf< TMP::IsNotDerivedFrom<Step_>,Mixin::Verbosity>::type
       >::type
   {
   public:
