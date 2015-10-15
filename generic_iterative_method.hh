@@ -35,16 +35,20 @@ namespace Dune
     using namespace TMP;
 
     template <class Step>
-    using EnableVerbosity = Nullary< StoreIfNotDerivedFrom<Step> , Mixin::Verbosity >;
+    using EnableVerbosity = Bind< StoreIfNotDerivedFrom<Step> , Mixin::Verbosity >;
+
+    template <class Step, class TerminationCriterion>
+    using MixinOperation = StoreIf< typename Apply< And , NotBaseOf<Step> , BaseOf<TerminationCriterion> >::type >;
 
     template <class Step, class TerminationCriterion, class... Mixins>
-    using EnableMixins = Nullary< VariadicApply< StoreIf< And< NotBaseOf<Step> , BaseOf<TerminationCriterion> > > , Compose > , Mixins... >;
+    using EnableMixins = Bind< VariadicApply< MixinOperation<Step,TerminationCriterion> , Compose > , Mixins... >;
 
     template <class Step, class TerminationCriterion, class... Mixins>
-    using Base = typename Compose<
+    using Base = typename Apply<
+      Compose,
       EnableVerbosity<Step>,
       EnableMixins<Step,TerminationCriterion,Mixins...>
-    >::template apply<>::type;
+    >::type::template apply<>::type;
   }
   //! @endcond
 
@@ -61,7 +65,8 @@ namespace Dune
       public InverseOperator<typename Step_::domain_type, typename Step_::range_type> ,
       public Mixin::MaxSteps ,
       public GenericIterativeMethodDetail::Base<
-        Step_, TerminationCriterion_,
+        Step_,
+        TerminationCriterion_,
         Mixin::RelativeAccuracy<real_type>, Mixin::AbsoluteAccuracy<real_type>, Mixin::MinimalAccuracy<real_type>, Mixin::Eps<real_type>
       >
   {
@@ -73,6 +78,7 @@ namespace Dune
     using field_type  = field_t<domain_type>;
 
     /*!
+      @brief Construct from given step implementation and termination criterions.
       @param step object implementing one step of an iterative scheme
       @param terminate termination criterion
       @param maxSteps
@@ -85,6 +91,7 @@ namespace Dune
       initializeConnections();
     }
 
+    //! @brief Optional constructor for the case that the step has a constructor that takes three parameters of type Operator, Preconditioner and ScalarProduct.
     template <class Operator, class Preconditioner, class ScalarProduct,
               std::enable_if_t<std::is_constructible<Step,Operator,Preconditioner,ScalarProduct>::value>* = nullptr >
     GenericIterativeMethod(Operator&& A, Preconditioner&& P, ScalarProduct&& sp, TerminationCriterion terminate, unsigned maxSteps = 1000)
@@ -92,6 +99,7 @@ namespace Dune
                                 std::move(terminate) , maxSteps )
     {}
 
+    //! @brief Optional constructor for the case that the step has a constructor that takes three parameters of type Operator, Preconditioner and ScalarProduct and the termination criterion is default constructible.
     template <class Operator, class Preconditioner, class ScalarProduct,
               std::enable_if_t<std::is_constructible<Step,Operator,Preconditioner,ScalarProduct>::value && std::is_default_constructible<TerminationCriterion>::value>* = nullptr >
     GenericIterativeMethod(Operator&& A, Preconditioner&& P, ScalarProduct&& sp, unsigned maxSteps = 1000)
@@ -99,6 +107,7 @@ namespace Dune
                                 TerminationCriterion() , maxSteps )
     {}
 
+    //! @brief Optional constructor for the case that the step has a constructor that takes three parameters of type Operator and Preconditioner.
     template <class Operator, class Preconditioner,
               std::enable_if_t<std::is_constructible<Step,Operator,Preconditioner>::value>* = nullptr >
     GenericIterativeMethod(Operator&& A, Preconditioner&& P, TerminationCriterion terminate, unsigned maxSteps = 1000)
@@ -106,6 +115,7 @@ namespace Dune
                                 std::move(terminate) , maxSteps )
     {}
 
+    //! @brief Optional constructor for the case that the step has a constructor that takes two parameters of type Operator and Preconditioner and the termination criterion is default constructible.
     template <class Operator, class Preconditioner,
               std::enable_if_t<std::is_constructible<Step,Operator,Preconditioner>::value && std::is_default_constructible<TerminationCriterion>::value>* = nullptr >
     GenericIterativeMethod(Operator&& A, Preconditioner&& P, unsigned maxSteps = 1000)
@@ -113,37 +123,37 @@ namespace Dune
                                 TerminationCriterion() , maxSteps )
     {}
 
-//    GenericIterativeMethod(const GenericIterativeMethod& other)
-//      : Step(other),
-//        Mixin::MaxSteps(other),
-//        terminate_(other.terminate_)
-//    {
-//      initializeConnections();
-//    }
+    GenericIterativeMethod(const GenericIterativeMethod& other)
+      : Step(static_cast<const Step&>(other)),
+        Mixin::MaxSteps(other),
+        terminate_(other.terminate_)
+    {
+      initializeConnections();
+    }
 
-//    GenericIterativeMethod(GenericIterativeMethod&& other)
-//      : Step(std::move(other)),
-//        Mixin::MaxSteps(std::move(other)),
-//        terminate_(std::move(other.terminate_))
-//    {
-//      initializeConnections();
-//    }
+    GenericIterativeMethod(GenericIterativeMethod&& other)
+      : Step(std::move(static_cast<Step&&>(other))),
+        Mixin::MaxSteps(std::move(other)),
+        terminate_(std::move(other.terminate_))
+    {
+      initializeConnections();
+    }
 
-//    GenericIterativeMethod& operator=(const GenericIterativeMethod& other)
-//    {
-//      Step::operator=(other);
-//      Mixin::MaxSteps::operator=(other);
-//      terminate_ = other.terminate_;
-//      initializeConnections();
-//    }
+    GenericIterativeMethod& operator=(const GenericIterativeMethod& other)
+    {
+      Step::operator=(static_cast<const Step&>(other));
+      Mixin::MaxSteps::operator=(other);
+      terminate_ = other.terminate_;
+      initializeConnections();
+    }
 
-//    GenericIterativeMethod& operator=(GenericIterativeMethod&& other)
-//    {
-//      Step::operator=(std::move(other));
-//      Mixin::MaxSteps::operator=(std::move(other));
-//      terminate_ = std::move(other.terminate_);
-//      initializeConnections();
-//    }
+    GenericIterativeMethod& operator=(GenericIterativeMethod&& other)
+    {
+      Step::operator=(std::move(static_cast<Step&&>(other)));
+      Mixin::MaxSteps::operator=(std::move(other));
+      terminate_ = std::move(other.terminate_);
+      initializeConnections();
+    }
 
     /*!
       @brief Apply iterative method to solve \f$Ax=b\f$.

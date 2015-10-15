@@ -10,6 +10,7 @@ namespace Dune
 {
   namespace TMP
   {
+    //! Template meta-function that always evaluates to std::true_type.
     struct True
     {
       template <class...>
@@ -19,6 +20,7 @@ namespace Dune
       };
     };
 
+    //! Template meta-function that always evaluates to std::false_type.
     struct False
     {
       template <class...>
@@ -29,28 +31,61 @@ namespace Dune
     };
 
 
-    template <class Operation, class OtherOperation>
+    template <class Operation, class... Args>
+    struct Apply
+    {
+      using type = typename Operation::template apply<Args...>::type;
+    };
+
+    //! @cond
+    namespace Impl
+    {
+      template <class Operation, class OtherOperation>
+      struct And
+      {
+        template <class... Args>
+        struct apply
+        {
+          using type = std::integral_constant< bool , Apply<Operation,Args...>::type::value && Apply<OtherOperation,Args...>::type::value >;
+        };
+      };
+
+      template <class Operation, class OtherOperation>
+      struct Or
+      {
+        template <class... Args>
+        struct apply
+        {
+          using type = std::integral_constant< bool , Operation::template apply<Args...>::type::value || OtherOperation::template apply<Args...>::type::value >;
+        };
+      };
+
+    }
+    //! @endcond
+
+    //! Logical "and" for meta-function that return std::true_type or std::false_type.
     struct And
     {
-      template <class... Args>
+      template <class First, class Second>
       struct apply
       {
-        using type = std::integral_constant< bool , Operation::template apply<Args...>::type::value && OtherOperation::template apply<Args...>::type::value >;
+        using type = Impl::And<First,Second>;
       };
     };
 
 
-    template <class Operation, class OtherOperation>
+    //! Logical "or" for meta-function that return std::true_type or std::false_type.
     struct Or
     {
-      template <class... Args>
+      template <class Operation, class OtherOperation>
       struct apply
       {
-        using type = std::integral_constant< bool , Operation::template apply<Args...>::type::value || OtherOperation::template apply<Args...>::type::value >;
+        using type = Impl::Or<Operation,OtherOperation>;
       };
     };
 
 
+    //! Logical "not" for meta-function that return std::true_type or std::false_type.
     template <class Operation>
     struct Not
     {
@@ -62,6 +97,7 @@ namespace Dune
     };
 
 
+    //! Meta-function that checks if its argument is a base class of Derived.
     template <class Derived>
     struct BaseOf
     {
@@ -73,24 +109,26 @@ namespace Dune
     };
 
 
-    template <class Operation, class... Args>
-    struct Nullary
-    {
-      template <class...>
-      struct apply
-      {
-        using type = typename Operation::template apply<Args...>::type;
-      };
-    };
-
-
+    //! Meta-function that checks if its argument is not a base class of Derived.
     template <class Derived>
     using NotBaseOf = Not< BaseOf<Derived> >;
 
 
-
-    template <template <class...> class Operation>
+    //! Bind Args... to Operation::apply. Thus apply becomes a nullary meta-function.
+    template <class Operation, class... Args>
     struct Bind
+    {
+      template <class...>
+      struct apply
+      {
+        using type = typename Apply<Operation,Args...>::type;
+      };
+    };
+
+
+    //! Create a meta-function that takes its arguments to generate Operation<Args...>.
+    template <template <class...> class Operation>
+    struct BindOperation
     {
       template <class... Args>
       struct apply
@@ -100,6 +138,7 @@ namespace Dune
     };
 
 
+    //! Stores its argument Type if Operation::template apply<Type>::type::value evaluates to true, else stores a Empty.
     template <class Operation>
     struct StoreIf
     {

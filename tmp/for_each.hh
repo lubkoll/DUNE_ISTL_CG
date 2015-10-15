@@ -8,25 +8,15 @@ namespace Dune
 {
   namespace TMP
   {
-    template <class,class>
-    struct DefaultCombiner
-    {
-      template <class... Args>
-      struct apply
-      {
-        using type = Empty;
-      };
-    };
-
     //! @cond
-    namespace ForEachDetail
+    namespace Impl
     {
       template <class... Args>
-      struct ComposeImpl
+      struct Composer
       {
         template <class First, class Second,
-                  bool = !std::is_same< typename First::template apply<Args...>::type,Empty>::value,//HasNestedType::type< typename First::template apply<Args...> > ,
-                  bool = !std::is_same< typename Second::template apply<Args...>::type,Empty>::value>//HasNestedType::type< typename Second::template apply<Args...> > >
+                  bool = !std::is_same< typename First::template apply<Args...>::type,Empty>::value,
+                  bool = !std::is_same< typename Second::template apply<Args...>::type,Empty>::value>
         struct apply
         {
           using type = Empty;
@@ -53,39 +43,83 @@ namespace Dune
           {};
         };
       };
+
+
+      template <class First, class Second>
+      struct Compose
+      {
+        template <class... Args>
+        struct apply
+        {
+          using type = typename Composer<Args...>::template apply<First,Second>::type;
+        };
+      };
+
+
+      template <class,class>
+      struct DefaultCombiner
+      {
+        template <class... Args>
+        struct apply
+        {
+          using type = Empty;
+        };
+      };
     }
     //! @endcond
 
 
-    template <class First, class Second>
-    struct Compose
+    //! Always returns Dune::Empty.
+    struct DefaultCombiner
     {
-      template <class... Args>
+      template <class First, class Second>
       struct apply
       {
-        using type = typename ForEachDetail::ComposeImpl<Args...>::template apply<First,Second>::type;
+        using type = Impl::DefaultCombiner<First,Second>;
       };
     };
 
 
-    template <class Operation, template <class,class> class Combiner, class... Sequence>
+    /*!
+      @brief Composition of return types from meta-functions.
+
+      If both meta-functions return types different from Dune::Empty than a class that inherits from
+      both results is returned.
+      If both return Dune::Empty then returns Dune::Empty
+      Else returns the results that differs from Dune::Empty
+     */
+    struct Compose
+    {
+      template <class First, class Second>
+      struct apply
+      {
+        using type = Impl::Compose<First,Second>;
+      };
+    };
+
+
+    /*!
+      @tparam Operation operation to apply on each element of Sequence
+      @tparam Combiner combines the individual results
+     */
+    template <class Operation, class Combiner, class... Sequence>
     struct VariadicForEach;
 
-    template <class Operation, template <class,class> class Combiner, class Element, class... Sequence>
+    template <class Operation, class Combiner, class Element, class... Sequence>
     struct VariadicForEach<Operation,Combiner,Element,Sequence...>
     {
       template <class... Args>
       struct apply
       {
         using type =
-        typename Combiner<
+        typename Combiner::template apply<
           typename Operation::template apply<Element>::type,
           VariadicForEach<Operation,Combiner,Sequence...>
-        >::template apply<Args...>::type;
+        >::type::template apply<Args...>::type;
       };
     };
 
-    template <class Operation, template <class,class> class Combiner, class LastElement>
+    template <class Operation, class Combiner, class LastElement>
     struct VariadicForEach<Operation,Combiner,LastElement>
     {
       template <class... Args>
@@ -96,27 +130,29 @@ namespace Dune
     };
 
 
-    template <class Operation, template <class,class> class Combiner = DefaultCombiner>
+    /*!
+      @tparam Operation operation to apply on each argument to apply
+      @tparam Combiner combines the individual results
+     */
+    template <class Operation, class Combiner = DefaultCombiner>
     struct VariadicApply
     {
-      template <class... OptionalBases>
+      template <class... Args>
       struct apply;
 
-      template<class OptionalBasis, class... OtherOptionalBases>
-      struct apply<OptionalBasis,OtherOptionalBases...>
+      template<class Arg, class... Args>
+      struct apply<Arg,Args...>
       {
         using type =
-        typename Combiner<
-          Nullary< Operation , OptionalBasis > ,
-          Nullary< VariadicApply<Operation,Combiner>, OtherOptionalBases... >
-        >::template apply<>::type;
+        typename Combiner::template apply<
+          Bind< Operation , Arg > ,
+          Bind< VariadicApply<Operation,Combiner>, Args... >
+        >::type::template apply<>::type;
       };
 
-      template <class OptionalBasis>
-      struct apply<OptionalBasis>
-      {
-        using type = typename Operation::template apply<OptionalBasis>::type;
-      };
+      template <class Arg>
+      struct apply<Arg> : Apply<Operation,Arg>
+      {};
     };
   }
 }
