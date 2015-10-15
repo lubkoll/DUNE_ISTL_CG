@@ -5,9 +5,8 @@
 #include <utility>
 
 #include "mixins.hh"
-#include "tmp/compile_time_sequence.hh"
+#include "tmp/for_each.hh"
 #include "tmp/logic.hh"
-#include "tmp/optional_base_class.hh"
 #include "util.hh"
 
 namespace Dune
@@ -28,9 +27,17 @@ namespace Dune
       template <class... Args>
       void operator()(Args&&...){}
     };
+
+
+    using namespace TMP;
+
+    template <class... Args>
+    using GenericStepBaseOperation = StoreIf< VariadicForEach< Bind<BaseOf>, Or, Args... > >;
+
+    template <class... Args>
+    using Base = VariadicApply< GenericStepBaseOperation<Args...> , Compose >;
   }
   /*! @endcond */
-
 
   /*!
     @ingroup ISTL_Solvers
@@ -61,11 +68,9 @@ namespace Dune
             template <class> class Interface = GenericStepDetail::NoInterface>
   class GenericStep :
       public Interface<Data>,
-      public TMP::BaseClassesIf<
-        TMP::OrUnaryToSequence<
-          TMP::IsDerivedFrom ,
-          TMP::Sequence<ApplyPreconditioner,SearchDirection,Scaling,TreatNonconvexity,UpdateIterate,AdjustData,Data>
-        >,
+      public GenericStepDetail::Base<
+        ApplyPreconditioner,SearchDirection,Scaling,TreatNonconvexity,UpdateIterate,AdjustData,Data
+      >::template apply<
         Mixin::IterativeRefinements , Mixin::Verbosity , Mixin::Eps< real_t<Domain> >
       >::type
   {

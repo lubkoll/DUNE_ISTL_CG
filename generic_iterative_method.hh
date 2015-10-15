@@ -7,8 +7,8 @@
 #include <utility>
 
 #include "optional.hh"
+#include "tmp/for_each.hh"
 #include "tmp/logic.hh"
-#include "tmp/optional_base_class.hh"
 #include "voider.hh"
 #include "util.hh"
 #include "mixins.hh"
@@ -29,6 +29,25 @@ namespace Dune
     return os;
   }
 
+  //! @cond
+  namespace GenericIterativeMethodDetail
+  {
+    using namespace TMP;
+
+    template <class Step>
+    using EnableVerbosity = Nullary< StoreIfNotDerivedFrom<Step> , Mixin::Verbosity >;
+
+    template <class Step, class TerminationCriterion, class... Mixins>
+    using EnableMixins = Nullary< VariadicApply< StoreIf< And< NotBaseOf<Step> , BaseOf<TerminationCriterion> > > , Compose > , Mixins... >;
+
+    template <class Step, class TerminationCriterion, class... Mixins>
+    using Base = typename Compose<
+      EnableVerbosity<Step>,
+      EnableMixins<Step,TerminationCriterion,Mixins...>
+    >::template apply<>::type;
+  }
+  //! @endcond
+
 
   /*!
     @ingroup ISTL_Solvers
@@ -41,11 +60,10 @@ namespace Dune
       public Step_ ,
       public InverseOperator<typename Step_::domain_type, typename Step_::range_type> ,
       public Mixin::MaxSteps ,
-      public TMP::ComposeClass<
-        typename TMP::BaseClassesIf< TMP::And< TMP::IsNotDerivedFrom<Step_> , TMP::IsDerivedFrom<TerminationCriterion_> > ,
-          Mixin::RelativeAccuracy<real_type>, Mixin::AbsoluteAccuracy<real_type>, Mixin::MinimalAccuracy<real_type>, Mixin::Eps<real_type> >::type,
-        typename TMP::BaseClassesIf< TMP::IsNotDerivedFrom<Step_>,Mixin::Verbosity>::type
-      >::type
+      public GenericIterativeMethodDetail::Base<
+        Step_, TerminationCriterion_,
+        Mixin::RelativeAccuracy<real_type>, Mixin::AbsoluteAccuracy<real_type>, Mixin::MinimalAccuracy<real_type>, Mixin::Eps<real_type>
+      >
   {
   public:
     using Step = Step_;

@@ -3,7 +3,8 @@
 
 #include <type_traits>
 
-#include "empty.hh"
+#include "dune/common/typetraits.hh"
+#include "../voider.hh"
 
 namespace Dune
 {
@@ -11,86 +12,111 @@ namespace Dune
   {
     struct True
     {
-      template <class>
+      template <class...>
       struct apply
       {
-        static constexpr bool value = true;
+        using type = std::true_type;
       };
     };
 
     struct False
     {
-      template <class>
+      template <class...>
       struct apply
       {
-        static constexpr bool value = false;
+        using type = std::false_type;
       };
     };
 
 
-    template <class Type0, class Type1>
+    template <class Operation, class OtherOperation>
     struct And
     {
-      template <class Arg>
+      template <class... Args>
       struct apply
       {
-        static constexpr bool value = Type0::template apply<Arg>::value && Type1::template apply<Arg>::value;
+        using type = std::integral_constant< bool , Operation::template apply<Args...>::type::value && OtherOperation::template apply<Args...>::type::value >;
       };
     };
 
 
-    template <class Type0, class Type1>
+    template <class Operation, class OtherOperation>
     struct Or
     {
-      template <class Arg>
+      template <class... Args>
       struct apply
       {
-        static constexpr bool value = Type0::template apply<Arg>::value || Type1::template apply<Arg>::value;
+        using type = std::integral_constant< bool , Operation::template apply<Args...>::type::value || OtherOperation::template apply<Args...>::type::value >;
+      };
+    };
+
+
+    template <class Operation>
+    struct Not
+    {
+      template <class... Args>
+      struct apply
+      {
+        using type = std::integral_constant< bool , !Operation::template apply<Args...>::type::value>;
       };
     };
 
 
     template <class Derived>
-    struct IsDerivedFrom
+    struct BaseOf
     {
       template <class Base>
       struct apply
       {
-        static constexpr bool value = std::is_base_of<Base,Derived>::value;
+        using type = std::is_base_of<Base,Derived>;
+      };
+    };
+
+
+    template <class Operation, class... Args>
+    struct Nullary
+    {
+      template <class...>
+      struct apply
+      {
+        using type = typename Operation::template apply<Args...>::type;
       };
     };
 
 
     template <class Derived>
-    struct IsNotDerivedFrom
+    using NotBaseOf = Not< BaseOf<Derived> >;
+
+
+
+    template <template <class...> class Operation>
+    struct Bind
     {
-      template <class Base>
+      template <class... Args>
       struct apply
       {
-        static constexpr bool value = !std::is_base_of<Base,Derived>::value;
+        using type = Operation<Args...>;
       };
     };
 
 
-    template <template <class> class Unary, class Sequence>
-    struct OrUnaryToSequence
+    template <class Operation>
+    struct StoreIf
     {
-      template <class Arg>
+      template <class Type>
       struct apply
       {
-        static constexpr bool value = Unary<typename Sequence::type>::template apply<Arg>::value || OrUnaryToSequence<Unary,typename Sequence::next>::template apply<Arg>::value;
+        using type = typename std::conditional< Operation::template apply<Type>::type::value , Type , Empty>::type;
       };
     };
 
-    template <template <class> class Unary>
-    struct OrUnaryToSequence<Unary,Empty>
-    {
-      template <class Arg>
-      struct apply
-      {
-        static constexpr bool value = false;
-      };
-    };
+
+    template <class Derived>
+    using StoreIfDerivedFrom = StoreIf< BaseOf<Derived> >;
+
+
+    template <class Derived>
+    using StoreIfNotDerivedFrom = StoreIf< NotBaseOf<Derived> >;
   }
 }
 #endif // DUNE_TMP_LOGIC_HH
