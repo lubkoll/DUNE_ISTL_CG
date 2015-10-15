@@ -6,12 +6,9 @@
 namespace Dune
 {
   //! @cond
-  namespace UtilDetail
-  {
-    template <class,class = void> struct Real_t;
-    class Empty {};
-  }
+  namespace UtilDetail{ template <class,class = void> class Real_t; }
   //! @endcond
+
 
   //! Convenient access to Type::field_type.
   template <class Type>
@@ -23,17 +20,12 @@ namespace Dune
   using real_t = typename UtilDetail::Real_t<Type>::type;
 
 
-  //! Convenient access to Type::type
+  //! Convenient access to Type::type;
   template <class Type>
   using access_t = typename Type::type;
 
 
-  //! Evaluates to Base if std::is_base_of<Base,Derived>::value==false, else evaluates to an empty class.
-  template <class Derived, class Base>
-  using DeriveFromBaseIfNotAmbiguous = access_t<std::conditional< std::is_base_of<Base,Derived>::value , UtilDetail::Empty , Base > >;
-
-
-  /*! @cond */
+  //! @cond
   namespace UtilDetail
   {
     template <class Type, class>
@@ -48,7 +40,7 @@ namespace Dune
       using type = typename Real_t< field_t<Type> >::type;
     };
   }
-  /*! @endcond */
+  //! @endcond
 }
 
 #endif // DUNE_UTIL_HH

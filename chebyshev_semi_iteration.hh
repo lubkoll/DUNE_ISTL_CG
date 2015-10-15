@@ -20,16 +20,35 @@ namespace Dune
     {
       using real_type = real_t<Domain>;
 
-      Data(LinearOperator<Domain,Range>& A,
-           Preconditioner<Domain,Range>& P,
-           ScalarProduct<Domain>& sp)
-        : A_(A), P_(P), sp_(sp)
+      template <class LinOp, class Prec, class SP>
+      Data(LinOp& A, Prec& P, SP& sp)
+        : A_(&A), P_(&P), ssp_(), sp_(&sp)
+      {
+        static_assert( LinOp::category == Prec::category , "Linear operator and preconditioner are required to belong to the same category!" );
+        static_assert( LinOp::category == SolverCategory::sequential , "Linear operator must be sequential!" );
+      }
+
+      template <class LinOp, class Prec>
+      Data(LinOp& A,  Prec& P)
+        : A_(&A), P_(&P), ssp_(), sp_(&ssp_)
+      {
+        static_assert( LinOp::category == Prec::category , "Linear operator and preconditioner are required to belong to the same category!" );
+        static_assert( LinOp::category == SolverCategory::sequential , "Linear operator must be sequential!" );
+      }
+
+      Data(Data&&) = default;
+      Data& operator=(Data&&) = default;
+
+      Data(const Data& data)
+        : A_(data.A_), P_(data.P_), ssp_(), sp_(data.sp_)
       {}
 
-      Data(LinearOperator<Domain,Range>& A,
-           Preconditioner<Domain,Range>& P)
-        : A_(A), P_(P), ssp_(), sp_(ssp_)
-      {}
+      Data& operator=(const Data& data)
+      {
+        A_ = data.A_;
+        P_ = data.P_;
+        sp_ = data.sp_;
+      }
 
       void init(Domain& x, Range& b)
       {
@@ -40,10 +59,10 @@ namespace Dune
         *dx_ *= 0;
         b_ = std::make_unique<Range>(b);
         r_ = std::make_unique<Range>(b);
-        A_.applyscaleadd(-1,x,*r_);
+        A_->applyscaleadd(-1,x,*r_);
         Pr_ = std::make_unique<Domain>(x);
-        P_.apply(*Pr_,*r_);
-        sigma_ = sp_.dot(*r_,*Pr_);
+        P_->apply(*Pr_,*r_);
+        sigma_ = sp_->dot(*r_,*Pr_);
         x_1_ = std::make_unique<Domain>(x); *x_1_ *= 0;
       }
 
@@ -54,14 +73,14 @@ namespace Dune
         step_ = 1;
         b_ = std::make_unique<Range>(b);
         r_ = std::make_unique<Range>(b);
-        A_.applyscaleadd(-1,x,*r_);
+        A_->applyscaleadd(-1,x,*r_);
         x_1_ = std::make_unique<Domain>(x); *x_1_ *= 0;
       }
 
-      LinearOperator<Domain,Range>& A_;
-      Preconditioner<Domain,Range>& P_;
+      LinearOperator<Domain,Range>* A_;
+      Preconditioner<Domain,Range>* P_;
       SeqScalarProduct<Domain> ssp_;
-      ScalarProduct<Domain>& sp_;
+      ScalarProduct<Domain>* sp_;
 
       real_type spectralCenter_ = 0., spectralRadius_ = 0.;
       real_type alpha_ = 0., sigma_ = -1, beta_ = 0;
@@ -134,7 +153,7 @@ namespace Dune
       template <class Data>
       void operator()(Data& data) const
       {
-        data.sigma_ = data.sp_.dot(*data.Pr_,*data.r_);
+        data.sigma_ = data.sp_->dot(*data.Pr_,*data.r_);
         if( data.step_ == 1 )
         {
           data.beta_ = 0;
@@ -175,9 +194,9 @@ namespace Dune
       void operator()(Data& data, Domain& x) const
       {
         *data.r_ = *data.b_;
-        data.A_.applyscaleadd(-1,x,*data.r_);
-        data.P_.apply(*data.Pr_,*data.r_);
-        data.sigma_ = data.sp_.dot(*data.r_,*data.Pr_);
+        data.A_->applyscaleadd(-1,x,*data.r_);
+        data.P_->apply(*data.Pr_,*data.r_);
+        data.sigma_ = data.sp_->dot(*data.r_,*data.Pr_);
       }
     };
 
