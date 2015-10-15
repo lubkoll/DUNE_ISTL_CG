@@ -3,7 +3,6 @@
 
 #include "dune/common/typetraits.hh"
 #include "logic.hh"
-#include "type_traits.hh"
 
 namespace Dune
 {
