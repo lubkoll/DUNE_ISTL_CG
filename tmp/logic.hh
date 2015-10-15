@@ -31,11 +31,10 @@ namespace Dune
     };
 
 
+    //! Convenient access to Operation::apply<Args...>::type.
     template <class Operation, class... Args>
-    struct Apply
-    {
-      using type = typename Operation::template apply<Args...>::type;
-    };
+    using Apply = typename Operation::template apply<Args...>::type;
+
 
     //! @cond
     namespace Impl
@@ -46,7 +45,7 @@ namespace Dune
         template <class... Args>
         struct apply
         {
-          using type = std::integral_constant< bool , Apply<Operation,Args...>::type::value && Apply<OtherOperation,Args...>::type::value >;
+          using type = std::integral_constant< bool , Apply<Operation,Args...>::value && Apply<OtherOperation,Args...>::value >;
         };
       };
 
@@ -56,12 +55,13 @@ namespace Dune
         template <class... Args>
         struct apply
         {
-          using type = std::integral_constant< bool , Operation::template apply<Args...>::type::value || OtherOperation::template apply<Args...>::type::value >;
+          using type = std::integral_constant< bool , Apply<Operation,Args...>::value || Apply<OtherOperation,Args...>::value >;
         };
       };
 
     }
     //! @endcond
+
 
     //! Logical "and" for meta-function that return std::true_type or std::false_type.
     struct And
@@ -92,7 +92,7 @@ namespace Dune
       template <class... Args>
       struct apply
       {
-        using type = std::integral_constant< bool , !Operation::template apply<Args...>::type::value>;
+        using type = std::integral_constant< bool , !Apply<Operation,Args...>::value>;
       };
     };
 
@@ -121,7 +121,7 @@ namespace Dune
       template <class...>
       struct apply
       {
-        using type = typename Apply<Operation,Args...>::type;
+        using type = Apply<Operation,Args...>;
       };
     };
 
@@ -145,7 +145,7 @@ namespace Dune
       template <class Type>
       struct apply
       {
-        using type = typename std::conditional< Operation::template apply<Type>::type::value , Type , Empty>::type;
+        using type = typename std::conditional< Apply<Operation,Type>::value , Type , Empty>::type;
       };
     };
 

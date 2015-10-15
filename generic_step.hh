@@ -35,7 +35,7 @@ namespace Dune
     using GenericStepBaseOperation = StoreIf< VariadicForEach< BindOperation<BaseOf>, Or, Args... > >;
 
     template <class... Args>
-    using EnableBaseClasses = VariadicApply< GenericStepBaseOperation<Args...> , Compose >;
+    using EnableBaseClassesOf = VariadicApply< GenericStepBaseOperation<Args...> , Compose >;
   }
   /*! @endcond */
 
@@ -68,11 +68,10 @@ namespace Dune
             template <class> class Interface = GenericStepDetail::NoInterface>
   class GenericStep :
       public Interface<Data>,
-      public GenericStepDetail::EnableBaseClasses<
-        ApplyPreconditioner,SearchDirection,Scaling,TreatNonconvexity,UpdateIterate,AdjustData,Data
-      >::template apply<
+      public TMP::Apply<
+        GenericStepDetail::EnableBaseClassesOf< ApplyPreconditioner,SearchDirection,Scaling,TreatNonconvexity,UpdateIterate,AdjustData,Data>,
         Mixin::IterativeRefinements , Mixin::Verbosity , Mixin::Eps< real_t<Domain> >
-      >::type
+      >
   {
     using Interface<Data>::data_;
   public:

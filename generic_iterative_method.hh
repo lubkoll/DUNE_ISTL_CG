@@ -16,20 +16,6 @@
 namespace Dune
 {
   //! @cond
-  class InverseOperatorResult;
-  //! @endcond
-
-  inline std::ostream& operator<<(std::ostream& os, const InverseOperatorResult& res)
-  {
-    os << "InverseOperatorResult: converged         : " << std::boolalpha << res.converged << "\n";
-    os << "                       iterations        : " << res.iterations << "\n";
-    os << "                       reduction         : " << res.reduction << "\n";
-    os << "                       convergence rate  : " << res.conv_rate << "\n";
-    os << "                       elapsed time      : " << res.elapsed << " seconds\n";
-    return os;
-  }
-
-  //! @cond
   namespace GenericIterativeMethodDetail
   {
     using namespace TMP;
@@ -38,17 +24,17 @@ namespace Dune
     using EnableVerbosity = Bind< StoreIfNotDerivedFrom<Step> , Mixin::Verbosity >;
 
     template <class Step, class TerminationCriterion>
-    using MixinOperation = StoreIf< typename Apply< And , NotBaseOf<Step> , BaseOf<TerminationCriterion> >::type >;
+    using MixinOperation = StoreIf< Apply< And , NotBaseOf<Step> , BaseOf<TerminationCriterion> > >;
 
     template <class Step, class TerminationCriterion, class... Mixins>
     using EnableMixins = Bind< VariadicApply< MixinOperation<Step,TerminationCriterion> , Compose > , Mixins... >;
 
     template <class Step, class TerminationCriterion, class... Mixins>
-    using Base = typename Apply<
+    using Base = Apply<Apply<
       Compose,
       EnableVerbosity<Step>,
       EnableMixins<Step,TerminationCriterion,Mixins...>
-    >::type::template apply<>::type;
+    > >;
   }
   //! @endcond
 
@@ -96,7 +82,8 @@ namespace Dune
               std::enable_if_t<std::is_constructible<Step,Operator,Preconditioner,ScalarProduct>::value>* = nullptr >
     GenericIterativeMethod(Operator&& A, Preconditioner&& P, ScalarProduct&& sp, TerminationCriterion terminate, unsigned maxSteps = 1000)
       : GenericIterativeMethod( Step(std::forward<Operator>(A),std::forward<Preconditioner>(P),std::forward<ScalarProduct>(sp)) ,
-                                std::move(terminate) , maxSteps )
+                                std::move(terminate) ,
+                                maxSteps )
     {}
 
     //! @brief Optional constructor for the case that the step has a constructor that takes three parameters of type Operator, Preconditioner and ScalarProduct and the termination criterion is default constructible.
@@ -104,7 +91,8 @@ namespace Dune
               std::enable_if_t<std::is_constructible<Step,Operator,Preconditioner,ScalarProduct>::value && std::is_default_constructible<TerminationCriterion>::value>* = nullptr >
     GenericIterativeMethod(Operator&& A, Preconditioner&& P, ScalarProduct&& sp, unsigned maxSteps = 1000)
       : GenericIterativeMethod( Step(std::forward<Operator>(A),std::forward<Preconditioner>(P),std::forward<ScalarProduct>(sp)) ,
-                                TerminationCriterion() , maxSteps )
+                                TerminationCriterion() ,
+                                maxSteps )
     {}
 
     //! @brief Optional constructor for the case that the step has a constructor that takes three parameters of type Operator and Preconditioner.
@@ -112,7 +100,8 @@ namespace Dune
               std::enable_if_t<std::is_constructible<Step,Operator,Preconditioner>::value>* = nullptr >
     GenericIterativeMethod(Operator&& A, Preconditioner&& P, TerminationCriterion terminate, unsigned maxSteps = 1000)
       : GenericIterativeMethod( Step(std::forward<Operator>(A),std::forward<Preconditioner>(P)) ,
-                                std::move(terminate) , maxSteps )
+                                std::move(terminate) ,
+                                maxSteps )
     {}
 
     //! @brief Optional constructor for the case that the step has a constructor that takes two parameters of type Operator and Preconditioner and the termination criterion is default constructible.
@@ -120,7 +109,8 @@ namespace Dune
               std::enable_if_t<std::is_constructible<Step,Operator,Preconditioner>::value && std::is_default_constructible<TerminationCriterion>::value>* = nullptr >
     GenericIterativeMethod(Operator&& A, Preconditioner&& P, unsigned maxSteps = 1000)
       : GenericIterativeMethod( Step(std::forward<Operator>(A),std::forward<Preconditioner>(P)) ,
-                                TerminationCriterion() , maxSteps )
+                                TerminationCriterion() ,
+                                maxSteps )
     {}
 
     GenericIterativeMethod(const GenericIterativeMethod& other)

@@ -15,8 +15,8 @@ namespace Dune
       struct Composer
       {
         template <class First, class Second,
-                  bool = !std::is_same< typename First::template apply<Args...>::type,Empty>::value,
-                  bool = !std::is_same< typename Second::template apply<Args...>::type,Empty>::value>
+                  bool = !std::is_same< Apply<First,Args...>,Empty>::value,
+                  bool = !std::is_same< Apply<Second,Args...>,Empty>::value>
         struct apply
         {
           using type = Empty;
@@ -25,21 +25,21 @@ namespace Dune
         template <class First, class Second>
         struct apply<First,Second,true,false>
         {
-          using type = typename First::template apply<Args...>::type;
+          using type = Apply<First,Args...>;
         };
 
         template <class First, class Second>
         struct apply<First,Second,false,true>
         {
-          using type = typename Second::template apply<Args...>::type;
+          using type = Apply<Second,Args...>;
         };
 
         template <class First, class Second>
         struct apply<First,Second,true,true>
         {
           struct type :
-              First::template apply<Args...>::type ,
-              Second::template apply<Args...>::type
+              Apply<First,Args...>,
+              Apply<Second,Args...>
           {};
         };
       };
@@ -51,7 +51,7 @@ namespace Dune
         template <class... Args>
         struct apply
         {
-          using type = typename Composer<Args...>::template apply<First,Second>::type;
+          using type = Apply<Composer<Args...>,First,Second>;
         };
       };
 
@@ -111,11 +111,8 @@ namespace Dune
       template <class... Args>
       struct apply
       {
-        using type =
-        typename Combiner::template apply<
-          typename Operation::template apply<Element>::type,
-          VariadicForEach<Operation,Combiner,Sequence...>
-        >::type::template apply<Args...>::type;
+        using Combined = Apply< Combiner, Apply<Operation,Element>, VariadicForEach<Operation,Combiner,Sequence...> >;
+        using type = Apply<Combined,Args...>;
       };
     };
 
@@ -125,7 +122,7 @@ namespace Dune
       template <class... Args>
       struct apply
       {
-        using type = typename Operation::template apply<LastElement>::type::template apply<Args...>::type;
+        using type = Apply< Apply<Operation,LastElement> , Args...>;
       };
     };
 
@@ -143,16 +140,15 @@ namespace Dune
       template<class Arg, class... Args>
       struct apply<Arg,Args...>
       {
-        using type =
-        typename Combiner::template apply<
-          Bind< Operation , Arg > ,
-          Bind< VariadicApply<Operation,Combiner>, Args... >
-        >::type::template apply<>::type;
+        using Combined = Apply< Combiner , Bind<Operation,Arg>, Bind< VariadicApply<Operation,Combiner> , Args... > >;
+        using type = Apply< Combined >;
       };
 
       template <class Arg>
-      struct apply<Arg> : Apply<Operation,Arg>
-      {};
+      struct apply<Arg>
+      {
+        using type =  Apply<Operation,Arg>;
+      };
     };
   }
 }
