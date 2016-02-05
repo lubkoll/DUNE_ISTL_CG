@@ -9,11 +9,11 @@
 #include <stdexcept>
 
 #include <dune/common/timer.hh>
+#include <dune/common/typetraits.hh>
 
 #include "mixins/eps.hh"
 #include "mixins/relativeAccuracy.hh"
 #include "mixins/verbosity.hh"
-#include "util.hh"
 
 namespace Dune
 {
@@ -68,7 +68,7 @@ namespace Dune
                 class = std::enable_if<std::is_reference<Step>::value> >
       void connect(Step&& step)
       {
-        step_residualNorm_ = std::bind(&access_t< std::decay<Step> >::residualNorm,&step);
+        step_residualNorm_ = std::bind(&std::decay<Step>::type::residualNorm,&step);
       }
 
       /*!

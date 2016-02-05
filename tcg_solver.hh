@@ -4,12 +4,12 @@
 #include <iostream>
 #include <utility>
 
+#include <dune/common/typetraits.hh>
 #include "cg_solver.hh"
 #include "generic_iterative_method.hh"
 #include "generic_step.hh"
 #include "operator_type.hh"
 #include "relative_energy_termination_criterion.hh"
-#include "util.hh"
 #include "mixins/verbosity.hh"
 
 namespace Dune

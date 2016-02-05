@@ -1,6 +1,7 @@
 #ifndef DUNE_CG_HH
 #define DUNE_CG_HH
 
+#include <cassert>
 #include <memory>
 #include <utility>
 
@@ -23,16 +24,16 @@ namespace Dune
       Data(LinOp& A, Prec& P, SP& sp)
         : A_(&A), P_(&P), ssp_(), sp_(&sp)
       {
-        static_assert( LinOp::category == Prec::category , "Linear operator and preconditioner are required to belong to the same category!" );
-        static_assert( LinOp::category == SolverCategory::sequential , "Linear operator must be sequential!" );
+//        static_assert( LinOp::category == Prec::category , "Linear operator and preconditioner are required to belong to the same category!" );
+//        static_assert( LinOp::category == SolverCategory::sequential , "Linear operator must be sequential!" );
       }
 
       template <class LinOp, class Prec>
       Data(LinOp& A,  Prec& P)
         : A_(&A), P_(&P), ssp_(), sp_(&ssp_)
       {
-        static_assert( LinOp::category == Prec::category , "Linear operator and preconditioner are required to belong to the same category!" );
-        static_assert( LinOp::category == SolverCategory::sequential , "Linear operator must be sequential!" );
+//        static_assert( LinOp::category == Prec::category , "Linear operator and preconditioner are required to belong to the same category!" );
+//        static_assert( LinOp::category == SolverCategory::sequential , "Linear operator must be sequential!" );
       }
 
       Data(Data&&) = default;
@@ -52,8 +53,8 @@ namespace Dune
       void init(Domain& x, Range& b)
       {
         dx_ = nullptr;
-        Adx_ = std::make_unique<Range>(b); *Adx_ *= 0.,
-        Pr_ = std::make_unique<Domain>(x); *Pr_ *= 0.;
+        Adx_ = std::unique_ptr<Range>(new Range(b)); *Adx_ *= 0.,
+        Pr_ = std::unique_ptr<Domain>(new Domain(x)); *Pr_ *= 0.;
         r_ = &b;//std::make_unique<Range>(b);
         A_->applyscaleadd(-1.,x,*r_);
       }
@@ -101,26 +102,28 @@ namespace Dune
       {}
 
       //! @brief Access scaling for the conjugate search direction, i.e. \f$\frac{(r,Pr)}{(\delta x,A\delta x)}\f$
-      auto alpha() const
+      auto alpha() const -> decltype(std::declval<Data>().alpha_)
       {
         return data_.alpha_;
       }
 
       //! @brief Access length of conjugate search direction with respect to the energy norm, i.e. \f$(\delta x,A\delta x)\f$.
-      auto length() const
+      auto length() const -> decltype(std::declval<Data>().dxAdx_)
       {
         return data_.dxAdx_;
       }
 
       //! @brief Access norm of residual with respect to the norm induced by the preconditioner, i.e. \f$(r,Pr)\f$, where \f$r=b-Ax\f$.
-      auto preconditionedResidualNorm() const
+      auto preconditionedResidualNorm() const -> decltype(std::declval<Data>().sigma_)
       {
         return data_.sigma_;
       }
 
       //! @brief Access norm of residual with respect to the employed scalar product (in general the l2-norm), i.e. \f$\|r\|_2\f$, where \f$r=b-Ax\f$.
-      auto residualNorm()
+      auto residualNorm() -> decltype( std::declval<Data>().sp_->norm(*std::declval<Data>().r_) )
       {
+        assert( data_.sp_ != nullptr );
+        assert( data_.r_ != nullptr );
         return data_.sp_->norm(*data_.r_);
       }
 
@@ -186,7 +189,8 @@ namespace Dune
       {
         if( data.dx_ == nullptr)
         {
-          data.dx_ = std::make_unique< std::decay_t<decltype(*data.Pr_)> >(*data.Pr_);
+          using Domain = typename std::decay<decltype(*data.Pr_)>::type;
+          data.dx_ = std::unique_ptr< Domain >(new Domain(*data.Pr_));
           computeInducedStepLength(data);
           return;
         }
@@ -306,11 +310,11 @@ namespace Dune
   template <template <class,class,template <class> class> class CGType,
             template <class> class TerminationCriterion,
             class Domain, class Range, class real_type = real_t<Domain> >
-  auto make_cg(LinearOperator<Domain,Range>& A,
-               Preconditioner<Domain,Range>& P,
-               ScalarProduct<Domain>& sp,
-               real_type accuracy = 1e-15, unsigned nSteps = 1000,
-               unsigned verbosityLevel = 0, real_type eps = 1e-15)
+  CGType<Domain,Range,TerminationCriterion> make_cg(LinearOperator<Domain,Range>& A,
+                                                    Preconditioner<Domain,Range>& P,
+                                                    ScalarProduct<Domain>& sp,
+                                                    real_type accuracy = 1e-15, unsigned nSteps = 1000,
+                                                    unsigned verbosityLevel = 0, real_type eps = 1e-15)
   {
     using MyCG = CGType<Domain,Range,TerminationCriterion>;
     TerminationCriterion< real_t<Domain> > terminationCriterion;

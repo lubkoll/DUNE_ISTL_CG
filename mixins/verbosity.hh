@@ -37,7 +37,7 @@ namespace Dune
        * @brief Check if verbosity is turned on.
        * @return true if verbosityLevel > 0
        */
-      bool verbose() const noexcept
+      bool is_verbose() const noexcept
       {
         return verbosityLevel_ > 0;
       }

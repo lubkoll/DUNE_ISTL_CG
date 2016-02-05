@@ -3,8 +3,7 @@
 
 #include <type_traits>
 
-#include "dune/common/typetraits.hh"
-#include "../voider.hh"
+#include <dune/common/typetraits.hh>
 
 namespace Dune
 {
@@ -63,7 +62,7 @@ namespace Dune
     //! @endcond
 
 
-    //! Logical "and" for meta-function that return std::true_type or std::false_type.
+    //! Logical "and" for meta-functions that return std::true_type or std::false_type.
     struct And
     {
       template <class First, class Second>
@@ -74,7 +73,7 @@ namespace Dune
     };
 
 
-    //! Logical "or" for meta-function that return std::true_type or std::false_type.
+    //! Logical "or" for meta-functions that return std::true_type or std::false_type.
     struct Or
     {
       template <class Operation, class OtherOperation>
@@ -85,7 +84,7 @@ namespace Dune
     };
 
 
-    //! Logical "not" for meta-function that return std::true_type or std::false_type.
+    //! Logical "not" for meta-functions that return std::true_type or std::false_type.
     template <class Operation>
     struct Not
     {

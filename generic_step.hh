@@ -4,10 +4,11 @@
 #include <string>
 #include <utility>
 
+#include <dune/common/typetraits.hh>
+
 #include "mixins.hh"
-#include "tmp/for_each.hh"
-#include "tmp/logic.hh"
-#include "util.hh"
+#include "fglue/TMP/createMissingBaseClasses.hh"
+#include "fglue/Fusion/connect.hh"
 
 namespace Dune
 {
@@ -27,15 +28,6 @@ namespace Dune
       template <class... Args>
       void operator()(Args&&...){}
     };
-
-
-    using namespace TMP;
-
-    template <class... Args>
-    using GenericStepBaseOperation = StoreIf< VariadicForEach< BindOperation<BaseOf>, Or, Args... > >;
-
-    template <class... Args>
-    using EnableBaseClassesOf = VariadicApply< GenericStepBaseOperation<Args...> , Compose >;
   }
   /*! @endcond */
 
@@ -68,9 +60,9 @@ namespace Dune
             template <class> class Interface = GenericStepDetail::NoInterface>
   class GenericStep :
       public Interface<Data>,
-      public TMP::Apply<
-        GenericStepDetail::EnableBaseClassesOf< ApplyPreconditioner,SearchDirection,Scaling,TreatNonconvexity,UpdateIterate,AdjustData,Data>,
-        Mixin::IterativeRefinements , Mixin::Verbosity , Mixin::Eps< real_t<Domain> >
+      public FGlue::EnableBaseClassesIf<
+          FGlue::IsBaseOfOneOf<ApplyPreconditioner,SearchDirection,Scaling,TreatNonconvexity,UpdateIterate,AdjustData,Data>,
+          Mixin::IterativeRefinements , Mixin::Verbosity , Mixin::Eps< real_t<Domain> >
       >
   {
     using Interface<Data>::data_;
@@ -158,15 +150,15 @@ namespace Dune
   private:
     void initializeConnections()
     {
-      using namespace Mixin;
-      Optional::Mixin::Attach< IterativeRefinements , Verbosity , Eps<real_type> >::apply(*this,
-                                                                                          applyPreconditioner_,
-                                                                                          computeSearchDirection_,
-                                                                                          computeScaling_,
-                                                                                          treatNonconvexity_,
-                                                                                          updateIterate_,
-                                                                                          adjustData_,
-                                                                                          data_);
+      FGlue::Connector< FGlue::IsDerivedFrom<Mixin::IterativeRefinements> >::template
+          from<Mixin::IterativeRefinements>(*this).to
+          (applyPreconditioner_,computeSearchDirection_,computeScaling_,treatNonconvexity_,updateIterate_,adjustData_,data_);
+      FGlue::Connector< FGlue::IsDerivedFrom<Mixin::Verbosity> >::template
+          from<Mixin::Verbosity>(*this).
+          to(applyPreconditioner_,computeSearchDirection_,computeScaling_,treatNonconvexity_,updateIterate_,adjustData_,data_);
+      FGlue::Connector< FGlue::IsDerivedFrom<Mixin::Eps<real_type>> >::template
+          from<Mixin::Eps<real_type>>(*this).
+          to(applyPreconditioner_,computeSearchDirection_,computeScaling_,treatNonconvexity_,updateIterate_,adjustData_,data_);
     }
 
     ApplyPreconditioner applyPreconditioner_;

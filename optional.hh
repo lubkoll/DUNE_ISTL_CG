@@ -1,6 +1,9 @@
 #ifndef DUNE_OPTIONAL_HH
 #define DUNE_OPTIONAL_HH
 
+#include <functional>
+#include <dune/common/typetraits.hh>
+
 namespace Dune
 {
   //! @cond
@@ -67,7 +70,7 @@ namespace Dune
       template <class Type, class = void>
       struct Restart
       {
-        static auto apply(const Type&)
+        static bool apply(const Type&)
         {
           return false;
         }
@@ -76,7 +79,7 @@ namespace Dune
       template <class Type>
       struct Restart< Type , void_t< Try::MemFn_restart<Type> > >
       {
-        static auto apply(const Type& t)
+        static bool apply(const Type& t)
         {
           return t.restart();
         }
@@ -86,7 +89,7 @@ namespace Dune
       template <class Type, class = void>
       struct Terminate
       {
-        static auto apply(const Type&)
+        static bool apply(const Type&)
         {
           return false;
         }
@@ -95,7 +98,7 @@ namespace Dune
       template <class Type>
       struct Terminate< Type , void_t< Try::MemFn_terminate<Type> > >
       {
-        static auto apply(const Type& t)
+        static bool apply(const Type& t)
         {
           return t.terminate();
         }
@@ -105,14 +108,14 @@ namespace Dune
 
 
     template <class Type>
-    auto terminate(const Type& t)
+    bool terminate(const Type& t)
     {
       return Detail::Terminate<Type>::apply(t);
     }
 
 
     template <class Type>
-    auto restart(const Type& t)
+    bool restart(const Type& t)
     {
       return Detail::Restart<Type>::apply(t);
     }
@@ -126,7 +129,7 @@ namespace Dune
 
 
     template <class Type>
-    auto bind_minimalDecreaseAchieved(const Type& t)
+    auto bind_minimalDecreaseAchieved(const Type& t) -> decltype( Detail::BindMemFn_MinimalDecreaseAchieved<Type>::apply(t) )
     {
       return Detail::BindMemFn_MinimalDecreaseAchieved<Type>::apply(t);
     }

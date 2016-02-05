@@ -8,10 +8,9 @@
 #include <stdexcept>
 
 #include <dune/common/timer.hh>
+#include <dune/common/typetraits.hh>
 
 #include "mixins.hh"
-#include "util.hh"
-
 namespace Dune
 {
   /*! @cond */
@@ -90,12 +89,12 @@ namespace Dune
         template <class Type>
         TypeErasedCGHolder& operator=(const Type& type)
         {
-          impl_ = std::make_unique< Base<Type> >(type);
+          impl_ = std::unique_ptr< Base<Type> >(new Base<Type>(type) );
           return *this;
         }
 
         template <class Type,
-                  access_t< std::enable_if< std::is_rvalue_reference<Type>::value > >* = nullptr >
+                  typename std::enable_if< std::is_rvalue_reference<Type>::value >::type* = nullptr >
         TypeErasedCGHolder& operator=(Type&&)
         {
           throw std::invalid_argument("TypeErasedCGHolder can not be assigned with a temporary object.");
@@ -137,7 +136,7 @@ namespace Dune
         readParameter();
 
         if( verbosityLevel() > 1 )
-          std::cout << "Estimated error (rel. energy errror): " << errorEstimate() << std::endl;
+          std::cout << "Estimated error (rel. energy error): " << errorEstimate() << std::endl;
 
         if( vanishingStep() ) return true;
 
@@ -158,7 +157,7 @@ namespace Dune
       /*!
         @brief Access estimated error.
        */
-      auto errorEstimate() const
+      real_type errorEstimate() const
       {
         return sqrt(squaredRelativeError());
       }

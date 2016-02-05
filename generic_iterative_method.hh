@@ -6,38 +6,46 @@
 #include <ostream>
 #include <utility>
 
+#include <dune/common/typetraits.hh>
+
 #include "optional.hh"
-#include "tmp/for_each.hh"
-#include "tmp/logic.hh"
-#include "voider.hh"
-#include "util.hh"
 #include "mixins.hh"
+
+#include "fglue/TMP/bind.hh"
+#include "fglue/TMP/createMissingBaseClasses.hh"
 
 namespace Dune
 {
   //! @cond
-  namespace GenericIterativeMethodDetail
+  namespace Detail
   {
-    using namespace TMP;
+    using namespace FGlue;
 
     template <class Step>
-    using EnableVerbosity = Bind< StoreIfNotDerivedFrom<Step> , Mixin::Verbosity >;
+    using EnableVerbosity = Apply< StoreIf< IsNotDerivedFrom<Step> > , Mixin::Verbosity >;
 
-    template <class Step, class TerminationCriterion>
-    using MixinOperation = StoreIf< Apply< And , NotBaseOf<Step> , BaseOf<TerminationCriterion> > >;
+    template <class Step,
+              class TerminationCriterion,
+              class real_type = real_t<typename Step::domain_type> >
+    using EnableAdditionalMixinsFromTerminationCriterion =
+    Apply< Variadic< StoreIf<
+      Apply< Delay<And>,
+        FGlue::IsBaseOf<TerminationCriterion>,
+        IsNotBaseOf<Step>
+        > > ,
+      Compose>,
+      DUNE_ISTL_MIXINS(real_type)
+    >;
 
-    template <class Step, class TerminationCriterion, class... Mixins>
-    using EnableMixins = Bind< VariadicApply< MixinOperation<Step,TerminationCriterion> , Compose > , Mixins... >;
-
-    template <class Step, class TerminationCriterion, class... Mixins>
-    using Base = Apply<Apply<
-      Compose,
-      EnableVerbosity<Step>,
-      EnableMixins<Step,TerminationCriterion,Mixins...>
-    > >;
+    template <class Step,
+              class TerminationCriterion>
+    using AddMixins =
+    Apply< Compose,
+      EnableAdditionalMixinsFromTerminationCriterion<Step,TerminationCriterion>,
+      EnableVerbosity<Step>
+    >;
   }
   //! @endcond
-
 
   /*!
     @ingroup ISTL_Solvers
@@ -50,11 +58,7 @@ namespace Dune
       public Step_ ,
       public InverseOperator<typename Step_::domain_type, typename Step_::range_type> ,
       public Mixin::MaxSteps ,
-      public GenericIterativeMethodDetail::Base<
-        Step_,
-        TerminationCriterion_,
-        Mixin::RelativeAccuracy<real_type>, Mixin::AbsoluteAccuracy<real_type>, Mixin::MinimalAccuracy<real_type>, Mixin::Eps<real_type>
-      >
+      public Detail::AddMixins<Step_,TerminationCriterion_>
   {
   public:
     using Step = Step_;
@@ -79,7 +83,7 @@ namespace Dune
 
     //! @brief Optional constructor for the case that the step has a constructor that takes three parameters of type Operator, Preconditioner and ScalarProduct.
     template <class Operator, class Preconditioner, class ScalarProduct,
-              std::enable_if_t<std::is_constructible<Step,Operator,Preconditioner,ScalarProduct>::value>* = nullptr >
+              typename std::enable_if<std::is_constructible<Step,Operator,Preconditioner,ScalarProduct>::value>::type* = nullptr >
     GenericIterativeMethod(Operator&& A, Preconditioner&& P, ScalarProduct&& sp, TerminationCriterion terminate, unsigned maxSteps = 1000)
       : GenericIterativeMethod( Step(std::forward<Operator>(A),std::forward<Preconditioner>(P),std::forward<ScalarProduct>(sp)) ,
                                 std::move(terminate) ,
@@ -88,7 +92,7 @@ namespace Dune
 
     //! @brief Optional constructor for the case that the step has a constructor that takes three parameters of type Operator, Preconditioner and ScalarProduct and the termination criterion is default constructible.
     template <class Operator, class Preconditioner, class ScalarProduct,
-              std::enable_if_t<std::is_constructible<Step,Operator,Preconditioner,ScalarProduct>::value && std::is_default_constructible<TerminationCriterion>::value>* = nullptr >
+              typename std::enable_if<std::is_constructible<Step,Operator,Preconditioner,ScalarProduct>::value && std::is_default_constructible<TerminationCriterion>::value>::type* = nullptr >
     GenericIterativeMethod(Operator&& A, Preconditioner&& P, ScalarProduct&& sp, unsigned maxSteps = 1000)
       : GenericIterativeMethod( Step(std::forward<Operator>(A),std::forward<Preconditioner>(P),std::forward<ScalarProduct>(sp)) ,
                                 TerminationCriterion() ,
@@ -97,7 +101,7 @@ namespace Dune
 
     //! @brief Optional constructor for the case that the step has a constructor that takes three parameters of type Operator and Preconditioner.
     template <class Operator, class Preconditioner,
-              std::enable_if_t<std::is_constructible<Step,Operator,Preconditioner>::value>* = nullptr >
+              typename std::enable_if<std::is_constructible<Step,Operator,Preconditioner>::value>::type* = nullptr >
     GenericIterativeMethod(Operator&& A, Preconditioner&& P, TerminationCriterion terminate, unsigned maxSteps = 1000)
       : GenericIterativeMethod( Step(std::forward<Operator>(A),std::forward<Preconditioner>(P)) ,
                                 std::move(terminate) ,
@@ -106,7 +110,7 @@ namespace Dune
 
     //! @brief Optional constructor for the case that the step has a constructor that takes two parameters of type Operator and Preconditioner and the termination criterion is default constructible.
     template <class Operator, class Preconditioner,
-              std::enable_if_t<std::is_constructible<Step,Operator,Preconditioner>::value && std::is_default_constructible<TerminationCriterion>::value>* = nullptr >
+              typename std::enable_if<std::is_constructible<Step,Operator,Preconditioner>::value && std::is_default_constructible<TerminationCriterion>::value>::type* = nullptr >
     GenericIterativeMethod(Operator&& A, Preconditioner&& P, unsigned maxSteps = 1000)
       : GenericIterativeMethod( Step(std::forward<Operator>(A),std::forward<Preconditioner>(P)) ,
                                 TerminationCriterion() ,
@@ -155,35 +159,39 @@ namespace Dune
     {
       if( this->verbosityLevel() > 1) std::cout << "\n === " << Step::name() << " === " << std::endl;
 
-      storeInitialInput(x,b);
-      Step::init(x,b);
-      terminate_.init();
+      initialize(x,b);
 
       auto step=1u;
       real_type lastErrorEstimate = 1;
+
       for(; step<=maxSteps(); ++step)
       {
-        computeStep(x,b);
+        Step::compute(x,b);
 
-        if( terminate_ || Optional::terminate(*this) ) break;
+        if( terminate_ )
+          break;
+
         if( Optional::restart(*this) )
         {
           restoreInitialInput(x,b);
           Step::reset(x,b);
           terminate_.init();
-          step = 1u;
+          step = 0u;
           lastErrorEstimate = 1;
           continue;
         }
 
-        if( this->verbosityLevel() > 1 ) printOutput(step,lastErrorEstimate);
-        lastErrorEstimate = terminate_.errorEstimate();
+        if( this->verbosityLevel() > 1 )
+        {
+          printOutput(step,lastErrorEstimate);
+          lastErrorEstimate = terminate_.errorEstimate();
+        }
       }
 
       Step::postProcess(x);
-      terminate_.print(res);
+//      terminate_.print(res);
       if( step < maxSteps() + 1 ) res.converged = true;
-      if( this->verbose() )  printFinalOutput(res,step);
+      if( this->is_verbose() )  printFinalOutput(res,step);
     }
 
     /*!
@@ -211,41 +219,41 @@ namespace Dune
     }
 
     //! Access termination criterion.
-    TerminationCriterion& terminationCriterion()
+    TerminationCriterion& getTerminationCriterion()
     {
       return terminate_;
     }
 
   private:
+    /// Initialize connections between iterative method and termination criterion.
     void initializeConnections()
     {
+      // connect termination criterion to step implementation to access relevant data
       terminate_.connect(*this);
-      Optional::bind_connect_minimalDecreaseAchieved(terminate_,*this);
+//      Optional::bind_connect_minimalDecreaseAchieved(terminate_,*this);
 
+      // attach mixins to correctly forward parameters to the termination criterion
       using namespace Mixin;
-      Optional::Mixin::Attach< AbsoluteAccuracy<real_type>, MinimalAccuracy<real_type>, RelativeAccuracy<real_type> , Verbosity , Eps<real_type> >::apply(*this,terminate_);
+      Optional::Mixin::Attach< DUNE_ISTL_MIXINS(real_type) >::apply(*this,terminate_);
+    }
+
+    void initialize(domain_type& x, range_type& b)
+    {
+      storeInitialInput(x,b);
+      Step::init(x,b);
+      terminate_.init();
     }
 
     void storeInitialInput(const domain_type& x, const range_type& b)
     {
-      x0 = std::make_unique<domain_type>(x);
-      b0 = std::make_unique<range_type>(b);
+      x0 = std::unique_ptr<domain_type>(new domain_type(x));
+      b0 = std::unique_ptr<range_type>(new range_type(b));
     }
 
     void restoreInitialInput(domain_type& x, range_type& b)
     {
       x = *x0;
       b = *b0;
-    }
-
-    void computeStep(domain_type& x, range_type& b)
-    {
-      try { Step::compute(x,b); }
-      catch(...)
-      {
-        restoreInitialInput(x,b);
-        throw;
-      }
     }
 
     void printOutput(unsigned step, real_type lastErrorEstimate) const
@@ -275,6 +283,15 @@ namespace Dune
     std::unique_ptr<domain_type> x0;
     std::unique_ptr<range_type> b0;
   };
+
+  template <class Step, class TerminationCriterion>
+  GenericIterativeMethod< typename std::decay<Step>::type, typename std::decay<TerminationCriterion>::type >
+  makeGenericIterativeMethod(Step&& step, TerminationCriterion&& terminationCriterion)
+  {
+    return GenericIterativeMethod< typename std::decay<Step>::type, typename std::decay<TerminationCriterion>::type >
+        ( std::forward<Step>(step),
+          std::forward<TerminationCriterion>(terminationCriterion) );
+  }
 }
 
 #endif // DUNE_GENERIC_ITERATIVE_METHOD_HH

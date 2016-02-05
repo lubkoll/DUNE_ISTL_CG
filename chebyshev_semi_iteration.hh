@@ -6,9 +6,9 @@
 #include <stdexcept>
 #include <string>
 
+#include <dune/common/typetraits.hh>
 #include "cg_solver.hh"
 #include "residual_based_termination_criterion.hh"
-#include "util.hh"
 
 namespace Dune
 {

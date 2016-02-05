@@ -7,9 +7,7 @@ namespace Dune
 {
   namespace Mixin
   {
-    /**
-     * @brief Connect objects of type Impl that provides a suitable method void update(Impl*) to another object of same type.
-     */
+    /// Connect objects of type Impl that provides a suitable method void update(Impl*) to another object of same type.
     template <class Impl>
     class MixinConnection
     {
@@ -17,6 +15,10 @@ namespace Dune
       /// Attach observer.
       void attach(Impl& observer)
       {
+        for(auto* presentObserver : observers_)
+          if( presentObserver == &observer )
+            return;
+
         observers_.push_back(&observer);
       }
 

@@ -1,6 +1,8 @@
 #ifndef DUNE_TMP_FOR_EACH_HH
 #define DUNE_TMP_FOR_EACH_HH
 
+#include <type_traits>
+
 #include "dune/common/typetraits.hh"
 #include "logic.hh"
 
@@ -15,8 +17,8 @@ namespace Dune
       struct Composer
       {
         template <class First, class Second,
-                  bool = !std::is_same< Apply<First,Args...>,Empty>::value,
-                  bool = !std::is_same< Apply<Second,Args...>,Empty>::value>
+                  bool = !std::is_base_of< Empty , Apply<First,Args...> >::value,
+                  bool = !std::is_base_of< Empty , Apply<Second,Args...> >::value>
         struct apply
         {
           using type = Empty;
