@@ -20,14 +20,14 @@ namespace Dune
   {
     //! Data object for the truncated regularized conjugate gradient method.
     template <class Domain, class Range>
-    struct Data : RCGSpec::Data<Domain,Range>
+    struct Cache : RCGSpec::Cache<Domain,Range>
     {
       template <class... Args>
-      Data(Args&&... args)
-        : RCGSpec::Data<Domain,Range>(std::forward<Args>(args)...)
+      Cache(Args&&... args)
+        : RCGSpec::Cache<Domain,Range>( std::forward<Args>(args)... )
       {}
 
-      std::function<bool()> minimalDecreaseAchieved_ = {};
+      std::function<bool()> minimalDecreaseAchieved = {};
     };
 
     /*! @cond */
@@ -43,52 +43,61 @@ namespace Dune
 
 
     //! Extends public interface of GenericStep for the truncated regularized conjugate gradient method.
-    template <class Data>
-    class Interface : public RCGSpec::InterfaceImpl<Data,Name>
+    template < class Cache_ >
+    class InterfaceImpl : public RCGSpec::InterfaceImpl< Cache_, Name >
     {
     public:
+      using Cache = Cache_;
+
       template <class... Args>
-      Interface(Args&&... args)
-        : RCGSpec::InterfaceImpl<Data,Name>(std::forward<Args>(args)...)
+      InterfaceImpl(Args&&... args)
+        : RCGSpec::InterfaceImpl<Cache,Name>( std::forward<Args>(args)... )
       {}
 
       void connect(std::function<bool()> minimalDecreaseAchieved)
       {
-        data_.minimalDecreaseAchieved_ = std::move(minimalDecreaseAchieved);
+        cache_->minimalDecreaseAchieved = std::move(minimalDecreaseAchieved);
       }
 
       bool terminate() const
       {
-        return data_.doTerminate_;
+        return cache_->doTerminate;
       }
 
     protected:
-      using RCGSpec::InterfaceImpl<Data,Name>::data_;
+      using RCGSpec::InterfaceImpl<Cache,Name>::cache_;
     };
+
+    template < class Domain, class Range >
+    using Interface = InterfaceImpl< Cache<Domain,Range> >;
 
 
     //! Regularize or truncate at directions of non-positive curvature.
     template <class real_type>
-    class TreatNonconvexity : public RCGSpec::TreatNonconvexity<real_type>
+    class Scaling : public RCGSpec::Scaling<real_type>
     {
     public:
-      template <class Data, class Domain>
-      void operator()(Data& data, Domain& x)
+      template < class Cache >
+      void operator()( Cache& cache )
       {
-        if( data.dxAdx_ > 0 ) return;
-
-        assert(data.minimalDecreaseAchieved_);
-        if( data.minimalDecreaseAchieved_() )
+        if( cache.dxAdx > 0 )
         {
-          if( this->verbosityLevel() > 1 )
-            std::cout << "    " << "Truncating at nonconvexity." << std::endl;
-          data.alpha_ = 0;
-          data.operatorType_ = OperatorType::Indefinite;
-          data.doTerminate_ = true;
+          cache.alpha = cache.sigma/cache.dxAdx;
           return;
         }
 
-        RCGSpec::TreatNonconvexity<real_type>::operator()(data,x);
+        assert(cache.minimalDecreaseAchieved);
+        if( cache.minimalDecreaseAchieved() )
+        {
+          if( this->verbosityLevel() > 1 )
+            std::cout << "    " << "Truncating at nonconvexity." << std::endl;
+          cache.alpha = 0;
+          cache.operatorType = OperatorType::Indefinite;
+          cache.doTerminate = true;
+          return;
+        }
+
+        RCGSpec::Scaling<real_type>::operator()( cache );
       }
     };
 
@@ -98,12 +107,9 @@ namespace Dune
     GenericStep<Domain, Range,
       CGSpec::ApplyPreconditioner,
       RCGSpec::SearchDirection,
-      CGSpec::Scaling,
-      TreatNonconvexity< real_t<Domain> >,
-      CGSpec::UpdateIterate,
-      RCGSpec::UpdateResidual,
-      Data<Domain,Range>,
-      Interface
+      Scaling< real_t<Domain> >,
+      RCGSpec::UpdateIterate,
+      Interface<Domain,Range>
     >;
   }
 

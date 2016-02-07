@@ -3,10 +3,8 @@
 
 #include <algorithm>
 #include <cmath>
-#include <functional>
 #include <iostream>
 #include <limits>
-#include <stdexcept>
 
 #include <dune/common/timer.hh>
 #include <dune/common/typetraits.hh>
@@ -103,12 +101,10 @@ namespace Dune
         return false;
       }
 
-      /*!
-        @brief Access estimated error.
-       */
-      auto errorEstimate() const
+      /// Access relative residual error.
+      real_type errorEstimate() const
       {
-        assert(step_residualNorm_);
+        assert( step_residualNorm_ );
         return step_residualNorm_()/initialResidualNorm_;
       }
 
@@ -116,7 +112,7 @@ namespace Dune
       real_type initialResidualNorm_ = -1;
       unsigned iteration_ = 0;
       std::function<real_type()> step_residualNorm_;
-      Timer watch = Timer{false};
+      Timer watch = Timer{ false };
     };
   }
 }

@@ -16,24 +16,26 @@ namespace Dune
 {
   namespace TCGSpec
   {
-    //! Data object for the truncated conjugate gradient method.
+    //! Cache object for the truncated conjugate gradient method.
     template <class Domain, class Range>
-    struct Data : CGSpec::Data<Domain,Range>
+    struct Cache : CGSpec::Cache<Domain,Range>
     {
       template <class... Args>
-      Data(Args&&... args)
-        : CGSpec::Data<Domain,Range>(std::forward<Args>(args)...)
+      Cache(Args&&... args)
+        : CGSpec::Cache<Domain,Range>( std::forward<Args>(args)... )
       {}
 
-      void reset(Domain& x, Domain& b)
+      void reset(LinearOperator<Domain,Range>* A,
+                Preconditioner<Domain,Range>* P,
+                ScalarProduct<Domain>* sp)
       {
-        CGSpec::Data<Domain,Range>::reset(x,b);
-        doTerminate_ = false;
+        CGSpec::Cache<Domain,Range>::reset(A,P,sp);
+        doTerminate = false;
       }
 
-      OperatorType operatorType_ = OperatorType::PositiveDefinite;
-      bool doTerminate_ = false;
-      bool performBlindUpdate_ = true;
+      OperatorType operatorType = OperatorType::PositiveDefinite;
+      bool doTerminate = false;
+      bool performBlindUpdate = true;
     };
 
     /*! @cond */
@@ -48,59 +50,56 @@ namespace Dune
     /*! @endcond */
 
     //! Extends public interface of GenericStep for the truncated conjugate gradient method.
-    template <class Data, class Name>
-    class InterfaceImpl : public CGSpec::InterfaceImpl<Data,Name>
+    template <class Cache, class Name>
+    class InterfaceImpl : public CGSpec::InterfaceImpl<Cache,Name>
     {
     public:
-      template <class... Args>
-      InterfaceImpl(Args&&... args)
-        : CGSpec::InterfaceImpl<Data,Name>(std::forward<Args>(args)...)
-      {}
-
       bool terminate() const
       {
-        return data_.doTerminate_;
+        return cache_->doTerminate;
       }
 
       bool operatorIsPositiveDefinite() const
       {
-        return data_.operatorType_ == OperatorType::PositiveDefinite;
+        return cache_->operatorType == OperatorType::PositiveDefinite;
       }
 
       void setPerformBlindUpdate(bool blindUpdate = true)
       {
-        data_.performBlindUpdate_ = blindUpdate;
+        cache_->performBlindUpdate = blindUpdate;
       }
 
     protected:
-      using CGSpec::InterfaceImpl<Data,Name>::data_;
+      using CGSpec::InterfaceImpl<Cache,Name>::cache_;
     };
 
 
     //! Bind second template argument of TCG::InterfaceImpl to satisfy the interface of GenericStep.
-    template <class Data>
-    using Interface = InterfaceImpl<Data,Name>;
+    template < class Domain, class Range >
+    using Interface = InterfaceImpl< Cache<Domain,Range>, Name >;
 
-
-    //! Truncate at directions of non-positive curvature.
-    class TreatNonconvexity : public Mixin::Verbosity
+    //! Compute scaling of the search direction for the conjugate gradient method.
+    struct Scaling : Mixin::Verbosity
     {
-    public:
-      template <class Data, class Domain>
-      void operator()(Data& data, Domain& x) const
+      template < class Cache >
+      void operator()( Cache& cache ) const
       {
-        if( data.dxAdx_ > 0 ) return;
+        if( cache.dxAdx > 0 )
+        {
+          cache.alpha = cache.sigma/cache.dxAdx;
+          return;
+        }
 
         if( verbosityLevel() > 1 )
           std::cout << "    " << "Truncating at nonconvexity" << std::endl;
         // At least do something to retain a little chance to get out of the nonconvexity. If a nonconvexity is encountered in the first step something probably went wrong
         // elsewhere. Chances that a way out of the nonconvexity can be found are small in this case.
-        if( data.performBlindUpdate_ )
-          x += *data.dx_;
+        if( cache.performBlindUpdate )
+          cache.x += cache.dx;
 
-        data.alpha_ = 0;
-        data.doTerminate_ = true;
-        data.operatorType_ = OperatorType::Indefinite;
+        cache.alpha = 0;
+        cache.doTerminate = true;
+        cache.operatorType = OperatorType::Indefinite;
       }
     };
 
@@ -111,12 +110,9 @@ namespace Dune
     GenericStep<Domain, Range,
       CGSpec::ApplyPreconditioner,
       CGSpec::SearchDirection,
-      CGSpec::Scaling,
-      TreatNonconvexity,
+      Scaling,
       CGSpec::UpdateIterate,
-      CGSpec::UpdateResidual,
-      Data<Domain,Range>,
-      Interface
+      Interface<Domain,Range>
     >;
   }
 

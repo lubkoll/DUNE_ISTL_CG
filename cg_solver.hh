@@ -14,70 +14,43 @@ namespace Dune
 {
   namespace CGSpec
   {
-    //! Data object for the conjugate gradient method.
+    //! Cache object for the conjugate gradient method.
     template <class Domain, class Range>
-    struct Data
+    struct Cache
     {
       using real_type = real_t<Domain>;
 
-      template <class LinOp, class Prec, class SP>
-      Data(LinOp& A, Prec& P, SP& sp)
-        : A_(&A), P_(&P), ssp_(), sp_(&sp)
-      {
-//        static_assert( LinOp::category == Prec::category , "Linear operator and preconditioner are required to belong to the same category!" );
-//        static_assert( LinOp::category == SolverCategory::sequential , "Linear operator must be sequential!" );
-      }
-
-      template <class LinOp, class Prec>
-      Data(LinOp& A,  Prec& P)
-        : A_(&A), P_(&P), ssp_(), sp_(&ssp_)
-      {
-//        static_assert( LinOp::category == Prec::category , "Linear operator and preconditioner are required to belong to the same category!" );
-//        static_assert( LinOp::category == SolverCategory::sequential , "Linear operator must be sequential!" );
-      }
-
-      Data(Data&&) = default;
-      Data& operator=(Data&&) = default;
-
-      Data(const Data& data)
-        : A_(data.A_), P_(data.P_), ssp_(), sp_(data.sp_)
+      Cache( Domain& x0, Range& b0 )
+        : x(x0), r(b0),
+          Pr(x0), dx(x0),
+          Adx(b0)
       {}
 
-      Data& operator=(const Data& data)
+      void reset(LinearOperator<Domain,Range>* A_,
+                Preconditioner<Domain,Range>* P_,
+                ScalarProduct<Domain>* sp_)
       {
-        A_ = data.A_;
-        P_ = data.P_;
-        sp_ = data.sp_;
+        A = A_;
+        P = P_;
+        sp = sp_;
+        A->applyscaleadd(-1,x,r);
+        P->apply(Pr,r);
+        residualNorm = sp->norm ( r );
+        firstStep = true;
       }
 
-      void init(Domain& x, Range& b)
-      {
-        dx_ = nullptr;
-        Adx_ = std::unique_ptr<Range>(new Range(b)); *Adx_ *= 0.,
-        Pr_ = std::unique_ptr<Domain>(new Domain(x)); *Pr_ *= 0.;
-        r_ = &b;//std::make_unique<Range>(b);
-        A_->applyscaleadd(-1.,x,*r_);
-      }
+      Domain& x;
+      Range& r;
+      real_type alpha = -1, beta = -1, sigma = -1, dxAdx = -1, residualNorm = 1;
+      Domain Pr, dx;
+      Range Adx;
+      bool firstStep = true;
 
-      void reset(Domain& x, Range& b)
-      {
-        dx_ = nullptr;
-        *Adx_ *= 0.;
-        *Pr_ *= 0.;
-        r_ = &b;//std::make_unique<Range>(b);
-        A_->applyscaleadd(-1.,x,*r_);
-      }
-
-      LinearOperator<Domain,Range>* A_;
-      Preconditioner<Domain,Range>* P_;
-      SeqScalarProduct<Domain> ssp_;
-      ScalarProduct<Domain>* sp_;
-
-      std::unique_ptr<Range> Adx_ = nullptr;
-      Range* r_ = nullptr;
-      std::unique_ptr<Domain> Pr_ = nullptr, dx_ = nullptr;
-      real_type alpha_ = -1, beta_ = -1, sigma_ = -1, dxAdx_ = -1;
+      LinearOperator<Domain,Range>* A = nullptr;
+      Preconditioner<Domain,Range>* P = nullptr;
+      ScalarProduct<Domain>* sp = nullptr;
     };
+
 
     //! @cond
     class Name
@@ -91,49 +64,54 @@ namespace Dune
     //! @endcond
 
 
-    //! Extends public interface of GenericStep for the conjugate gradient method.
-    template <class Data, class NameOfAlgorithm = Name>
+    /**
+     * @brief Extends internal interface of GenericStep for the conjugate gradient method.
+     *
+     * @warning Interface is only valid as long as a suitable cache object is provided.
+     * Caches are typically destroyed when the computation of an iterative method is finished.
+     */
+    template <class Cache_, class NameOfAlgorithm = Name>
     class InterfaceImpl : public NameOfAlgorithm
     {
     public:
-      template <class... Args>
-      InterfaceImpl(Args&&... args)
-        : data_(std::forward<Args>(args)...)
-      {}
+      using Cache = Cache_;
+
+      void setCache(Cache* cache)
+      {
+        cache_ = cache;
+      }
 
       //! @brief Access scaling for the conjugate search direction, i.e. \f$\frac{(r,Pr)}{(\delta x,A\delta x)}\f$
-      auto alpha() const -> decltype(std::declval<Data>().alpha_)
+      double alpha() const
       {
-        return data_.alpha_;
+        return cache_->alpha;
       }
 
       //! @brief Access length of conjugate search direction with respect to the energy norm, i.e. \f$(\delta x,A\delta x)\f$.
-      auto length() const -> decltype(std::declval<Data>().dxAdx_)
+      double length() const
       {
-        return data_.dxAdx_;
+        return cache_->dxAdx;
       }
 
       //! @brief Access norm of residual with respect to the norm induced by the preconditioner, i.e. \f$(r,Pr)\f$, where \f$r=b-Ax\f$.
-      auto preconditionedResidualNorm() const -> decltype(std::declval<Data>().sigma_)
+      double preconditionedResidualNorm() const
       {
-        return data_.sigma_;
+        return cache_->sigma;
       }
 
-      //! @brief Access norm of residual with respect to the employed scalar product (in general the l2-norm), i.e. \f$\|r\|_2\f$, where \f$r=b-Ax\f$.
-      auto residualNorm() -> decltype( std::declval<Data>().sp_->norm(*std::declval<Data>().r_) )
+      //! @brief Access norm of residual with respect to the employed scalar product, i.e. \f$\|r\|\f$, where \f$r=b-Ax\f$.
+      double residualNorm() const
       {
-        assert( data_.sp_ != nullptr );
-        assert( data_.r_ != nullptr );
-        return data_.sp_->norm(*data_.r_);
+        return cache_->residualNorm;
       }
 
     protected:
-      Data data_;
-    };
+      Cache* cache_;
+   };
 
     //! Bind second template argument of CG::InterfaceImpl to satisfy the interface of GenericStep.
-    template <class Data>
-    using Interface = InterfaceImpl<Data,Name>;
+    template <class Domain, class Range>
+    using Interface = InterfaceImpl< Cache<Domain,Range>, Name >;
 
 
     //! Apply preconditioner, possibly with iterative refinements.
@@ -141,41 +119,39 @@ namespace Dune
         : public Mixin::IterativeRefinements
     {
     public:
-      template <class Data>
-      void operator()(Data& data) const
+      template < class Cache >
+      void operator()( Cache& cache ) const
       {
-        assert(data.r_ != nullptr);
-        assert(data.Pr_ != nullptr);
-
-        data.P_->apply(*data.Pr_,*data.r_);
+        cache.P->apply( cache.Pr, cache.r );
 
         if( iterativeRefinements() > 0 )
         {
-          auto r2 = *data.r_;
-          auto dQr = *data.Pr_;
+          auto r2 = cache.r;
+          auto dQr = cache.Pr;
           for(auto i=0u; i<iterativeRefinements(); ++i)
           {
-            data.A_->applyscaleadd(-1.,*data.Pr_,r2);
-            data.P_->apply(dQr,r2);
-            *data.Pr_ += dQr;
+            cache.A->applyscaleadd(-1,cache.Pr,r2);
+            cache.P->apply(dQr,r2);
+            cache.Pr += dQr;
           }
         }
 
         using std::abs;
-        if( data.sigma_ < 0 )
-          data.sigma_ = abs( data.sp_->dot(*data.r_,*data.Pr_) );
+        if( cache.sigma < 0 )
+          cache.sigma = abs( cache.sp->dot( cache.r, cache.Pr ) );
+        cache.residualNorm = cache.sp->norm( cache.r );
       }
 
-      template <class Data, class Domain, class Range>
-      void pre(Data& data, Domain& x, Range& b) const
+      template <class Preconditioner, class Domain, class Range>
+      void pre(Preconditioner& P, Domain& x, Range& b) const
       {
-        data.P_->pre(x,b);
+        P.pre(x,b);
       }
 
-      template <class Data, class Domain>
-      void post(Data& data, Domain& x) const
+      template <class Preconditioner, class Domain>
+      void post(Preconditioner& P, Domain& x) const
       {
-        data.P_->post(x);
+        P.post(x);
       }
     };
 
@@ -184,32 +160,32 @@ namespace Dune
     class SearchDirection
     {
     public:
-      template <class Data>
-      void operator()(Data& data) const
+      template < class Cache >
+      void operator()( Cache& cache) const
       {
-        if( data.dx_ == nullptr)
+        if( cache.firstStep )
         {
-          using Domain = typename std::decay<decltype(*data.Pr_)>::type;
-          data.dx_ = std::unique_ptr< Domain >(new Domain(*data.Pr_));
-          computeInducedStepLength(data);
+          cache.dx = cache.Pr;
+          computeInducedStepLength(cache);
+          cache.firstStep = false;
           return;
         }
 
         using std::abs;
-        auto newSigma = abs( data.sp_->dot(*data.r_,*data.Pr_) );
-        data.beta_ = newSigma/data.sigma_;
-        *data.dx_ *= data.beta_; *data.dx_ += *data.Pr_;
-        data.sigma_ = newSigma;
+        auto newSigma = abs( cache.sp->dot(cache.r,cache.Pr) );
+        cache.beta = newSigma/cache.sigma;
+        cache.dx *= cache.beta; cache.dx += cache.Pr;
+        cache.sigma = newSigma;
 
-        computeInducedStepLength(data);
+        computeInducedStepLength(cache);
       }
 
     private:
-      template <class Data>
-      void computeInducedStepLength(Data& data) const
+      template < class Cache >
+      void computeInducedStepLength( Cache& cache ) const
       {
-        data.A_->apply(*data.dx_,*data.Adx_);
-        data.dxAdx_ = data.sp_->dot(*data.dx_,*data.Adx_);
+        cache.A->apply(cache.dx,cache.Adx);
+        cache.dxAdx = cache.sp->dot(cache.dx,cache.Adx);
       }
     };
 
@@ -218,10 +194,10 @@ namespace Dune
     class Scaling
     {
     public:
-      template <class Data>
-      void operator()(Data& data) const
+      template < class Cache >
+      void operator()( Cache& cache ) const
       {
-        data.alpha_ = data.sigma_/data.dxAdx_;
+        cache.alpha = cache.sigma/cache.dxAdx;
       }
     };
 
@@ -229,22 +205,11 @@ namespace Dune
     class UpdateIterate
     {
     public:
-      template <class Data, class Domain>
-      void operator()(Data& data, Domain& x) const
+      template < class Cache >
+      void operator()( Cache& cache ) const
       {
-        x.axpy(data.alpha_,*data.dx_);
-      }
-    };
-
-
-    //! Adjust residual.
-    class UpdateResidual
-    {
-    public:
-      template <class Data, class Domain>
-      void operator()(Data& data, Domain&) const
-      {
-        data.r_->axpy(-data.alpha_,*data.Adx_);
+        cache.x.axpy(cache.alpha,cache.dx);
+        cache.r.axpy(-cache.alpha,cache.Adx);
       }
     };
 
@@ -252,15 +217,12 @@ namespace Dune
     //! Step implementation for the conjugate gradient method.
     template <class Domain, class Range=Domain>
     using Step =
-    GenericStep<Domain, Range,
+    GenericStep< Domain, Range,
       ApplyPreconditioner,
       SearchDirection,
       Scaling,
-      GenericStepDetail::Ignore,
       UpdateIterate,
-      UpdateResidual,
-      Data<Domain,Range>,
-      Interface
+      Interface< Domain, Range >
     >;
   }
 

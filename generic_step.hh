@@ -15,7 +15,7 @@ namespace Dune
   /*! @cond */
   namespace GenericStepDetail
   {
-    class NoData
+    class NoCache
     {};
 
     template <class>
@@ -28,7 +28,21 @@ namespace Dune
       template <class... Args>
       void operator()(Args&&...){}
     };
+
+
+    template < class ApplyPreconditioner,
+               class ComputeSearchDirection,
+               class ComputeScaling,
+               class Update,
+               class real_type >
+    using AddMixins =
+    FGlue::EnableBaseClassesIf<
+      FGlue::IsBaseOfOneOf< ApplyPreconditioner, ComputeSearchDirection, ComputeScaling, Update >,
+      DUNE_ISTL_MIXINS( real_type )
+    >;
+
   }
+
   /*! @endcond */
 
   /*!
@@ -50,61 +64,61 @@ namespace Dune
     @tparam Range type of the range space \f$Y\f$
    */
   template <class Domain, class Range,
-            class ApplyPreconditioner = GenericStepDetail::Ignore,
-            class SearchDirection = GenericStepDetail::Ignore ,
-            class Scaling = GenericStepDetail::Ignore ,
-            class TreatNonconvexity = GenericStepDetail::Ignore,
-            class UpdateIterate = GenericStepDetail::Ignore ,
-            class AdjustData = GenericStepDetail::Ignore,
-            class Data = GenericStepDetail::NoData ,
-            template <class> class Interface = GenericStepDetail::NoInterface>
+            class ApplyPreconditioner    = GenericStepDetail::Ignore,
+            class ComputeSearchDirection = GenericStepDetail::Ignore,
+            class ComputeScaling         = GenericStepDetail::Ignore,
+            class Update                 = GenericStepDetail::Ignore,
+            class Interface              = GenericStepDetail::Ignore>
   class GenericStep :
-      public Interface<Data>,
-      public FGlue::EnableBaseClassesIf<
-          FGlue::IsBaseOfOneOf<ApplyPreconditioner,SearchDirection,Scaling,TreatNonconvexity,UpdateIterate,AdjustData,Data>,
-          Mixin::IterativeRefinements , Mixin::Verbosity , Mixin::Eps< real_t<Domain> >
-      >
+      public GenericStepDetail::AddMixins< ApplyPreconditioner, ComputeSearchDirection, ComputeScaling, Update, real_t<Domain> >,
+      public Interface
   {
-    using Interface<Data>::data_;
   public:
     //! type of the domain space
     using domain_type = Domain;
     //! type of the range space
     using range_type = Range;
     //! underlying field type
-    using field_type = typename Domain::field_type;
+    using field_type = field_t<Domain>;
     //! corresponding real type (same as real type for real spaces, differs for complex spaces)
-    using real_type = typename FieldTraits<field_type>::real_type;
+    using real_type = real_t<Domain>;
+    //! cache object storing temporaries
+    using Cache = typename Interface::Cache;
 
-    template <class... Args>
-    GenericStep(Args&&... args)
-      : Interface<Data>(std::forward<Args>(args)...)
+    template <class LinOp, class Prec, class SP>
+    GenericStep(LinOp& A, Prec& P, SP& sp)
+      : A_(A), P_(P), ssp_(), sp_(sp)
     {
       initializeConnections();
+//        static_assert( LinOp::category == Prec::category , "Linear operator and preconditioner are required to belong to the same category!" );
+//        static_assert( LinOp::category == SolverCategory::sequential , "Linear operator must be sequential!" );
     }
 
-    GenericStep(const GenericStep& other)
-      : Interface<Data>(other.data_)
+    template <class LinOp, class Prec>
+    GenericStep(LinOp& A,  Prec& P)
+      : A_(A), P_(P), ssp_(), sp_(ssp_)
     {
       initializeConnections();
+//        static_assert( LinOp::category == Prec::category , "Linear operator and preconditioner are required to belong to the same category!" );
+//        static_assert( LinOp::category == SolverCategory::sequential , "Linear operator must be sequential!" );
     }
 
-    GenericStep& operator=(const GenericStep& other)
+    GenericStep( const GenericStep& other )
+      : A_( other.A_ ),
+        P_( other.P_ ),
+        ssp_( ),
+        sp_( other.sp_ )
     {
-      Interface<Data>::operator=(other.data_);
-      initializeConnections();
+      initializeConnections( );
     }
 
-    GenericStep& operator=(GenericStep&& other)
+    GenericStep( GenericStep&& other )
+      : A_( other.A_ ),
+        P_( other.P_ ),
+        ssp_(),
+        sp_( other.sp_ )
     {
-      Interface<Data>::operator=(std::move(other.data_));
-      initializeConnections();
-    }
-
-    GenericStep(GenericStep&& other)
-      : Interface<Data>(std::move(other.data_))
-    {
-      initializeConnections();
+      initializeConnections( );
     }
 
     /*!
@@ -113,13 +127,18 @@ namespace Dune
      */
     void init(domain_type& x, range_type& b)
     {
-      applyPreconditioner_.pre(data_,x,b);
-      data_.init(x,b);
+      applyPreconditioner_.pre( P_, x, b );
     }
 
     void reset(domain_type& x, range_type& b)
     {
-      data_.reset(x,b);
+      this->cache_->reset( &A_, &P_, &sp_ );
+    }
+
+    void setCache( Cache* cache )
+    {
+      Interface::setCache( cache );
+      this->cache_->reset( &A_, &P_, &sp_ );
     }
 
     /*!
@@ -128,15 +147,15 @@ namespace Dune
       @param x current iterate
       @param b current right hand side
      */
-    void compute(domain_type& x, range_type& b)
+    void compute(domain_type&, range_type&)
     {
-      applyPreconditioner_(data_);
-      computeSearchDirection_(data_);
-      computeScaling_(data_);
-      treatNonconvexity_(data_,x);
-      updateIterate_(data_,x);
-      adjustData_(data_,x);
+      applyPreconditioner_( *this->cache_ );
+      computeSearchDirection_( *this->cache_ );
+      computeScaling_( *this->cache_ );
+      update_( *this->cache_ );
     }
+
+
 
     /*!
       @brief Post-process final iterate, i.e. apply @code{.cpp} P_.post(x) @endcode
@@ -144,29 +163,36 @@ namespace Dune
      */
     void postProcess(domain_type& x)
     {
-      applyPreconditioner_.post(data_,x);
+      applyPreconditioner_.post(P_,x);
     }
 
   private:
     void initializeConnections()
     {
-      FGlue::Connector< FGlue::IsDerivedFrom<Mixin::IterativeRefinements> >::template
-          from<Mixin::IterativeRefinements>(*this).to
-          (applyPreconditioner_,computeSearchDirection_,computeScaling_,treatNonconvexity_,updateIterate_,adjustData_,data_);
-      FGlue::Connector< FGlue::IsDerivedFrom<Mixin::Verbosity> >::template
-          from<Mixin::Verbosity>(*this).
-          to(applyPreconditioner_,computeSearchDirection_,computeScaling_,treatNonconvexity_,updateIterate_,adjustData_,data_);
-      FGlue::Connector< FGlue::IsDerivedFrom<Mixin::Eps<real_type>> >::template
-          from<Mixin::Eps<real_type>>(*this).
-          to(applyPreconditioner_,computeSearchDirection_,computeScaling_,treatNonconvexity_,updateIterate_,adjustData_,data_);
+      using FGlue::Connector;
+      using FGlue::IsDerivedFrom;
+
+      Connector< IsDerivedFrom<Mixin::IterativeRefinements> >::template
+          from< Mixin::IterativeRefinements >( *this ).
+          to(applyPreconditioner_,computeSearchDirection_,computeScaling_,update_);
+      Connector< IsDerivedFrom<Mixin::Verbosity> >::template
+          from< Mixin::Verbosity >( *this ).
+          to(applyPreconditioner_,computeSearchDirection_,computeScaling_,update_);
+      Connector< IsDerivedFrom< Mixin::Eps<real_type> > >::template
+          from< Mixin::Eps<real_type> >( *this ).
+          to(applyPreconditioner_,computeSearchDirection_,computeScaling_,update_);
     }
 
+
+    LinearOperator<Domain,Range>& A_;
+    Preconditioner<Domain,Range>& P_;
+    SeqScalarProduct<Domain> ssp_;
+    ScalarProduct<Domain>& sp_;
+
     ApplyPreconditioner applyPreconditioner_;
-    SearchDirection computeSearchDirection_;
-    Scaling computeScaling_;
-    TreatNonconvexity treatNonconvexity_;
-    UpdateIterate updateIterate_;
-    AdjustData adjustData_;
+    ComputeSearchDirection computeSearchDirection_;
+    ComputeScaling computeScaling_;
+    Update update_;
   };
 }
 

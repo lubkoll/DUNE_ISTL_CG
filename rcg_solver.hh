@@ -17,51 +17,40 @@ namespace Dune
 {
   namespace RCGSpec
   {
-    //! Data object for the regularized conjugate gradient method.
+    //! Cache object for the regularized conjugate gradient method.
     template <class Domain, class Range>
-    struct Data : TCGSpec::Data<Domain,Range>
+    struct Cache : TCGSpec::Cache<Domain,Range>
     {
-      using real_type = real_t<Domain>;
-
       template <class... Args>
-      Data(Args&&... args)
-        : TCGSpec::Data<Domain,Range>(std::forward<Args>(args)...)
+      Cache(Args&&... args)
+        : TCGSpec::Cache<Domain,Range>( std::forward<Args>(args)... ),
+          Pdx( this->r )
       {}
 
-      void init(Domain& x, Range& b)
+      void reset(LinearOperator<Domain,Range>* A,
+                Preconditioner<Domain,Range>* P,
+                ScalarProduct<Domain>* sp)
       {
-        TCGSpec::Data<Domain,Range>::init(x,b);
-        Pdx_ = std::make_unique<Range>(*this->r_);
+        TCGSpec::Cache<Domain,Range>::reset(A,P,sp);
+        Pdx = this->r;
+        doRestart = false;
       }
 
-      void reset(Domain& x, Range& b)
-      {
-        TCGSpec::Data<Domain,Range>::reset(x,b);
-        *Pdx_ = *this->r_;
-        doRestart_ = false;
-      }
-
-      real_type theta_ = 0, dxPdx_ = 0;
-      real_type minIncrease_ = 2, maxIncrease_ = 1000;
-      std::unique_ptr<Range> Pdx_ = nullptr;
-      bool doRestart_ = false;
+      real_t<Domain> theta = 0, dxPdx = 0, minIncrease = 2, maxIncrease = 1000;
+      Range Pdx;
+      bool doRestart = false;
     };
 
 
     //! Extends public interface of GenericStep for the regularized conjugate gradient method.
-    template <class Data, class Name>
-    class InterfaceImpl : public TCGSpec::InterfaceImpl<Data,Name>
+    template <class Cache, class Name>
+    class InterfaceImpl : public TCGSpec::InterfaceImpl<Cache,Name>
     {
     public:
-      template <class... Args>
-      InterfaceImpl(Args&&... args)
-        : TCGSpec::InterfaceImpl<Data,Name>(std::forward<Args>(args)...)
-      {}
-
       //!* @brief Restart the regularized conjugate gradient method after regularization.
       bool restart() const
       {
-        return data_.doRestart_;
+        return cache_->doRestart;
       }
 
       /**
@@ -71,7 +60,7 @@ namespace Dune
       template <class Type>
       void setMinimalIncrease(Type minIncrease)
       {
-        data_.minIncrease_ = minIncrease;
+        cache_->minIncrease = minIncrease;
       }
 
       /**
@@ -81,11 +70,11 @@ namespace Dune
       template <class Type>
       void setMaximalIncrease(Type maxIncrease)
       {
-        data_.maxIncrease_ = maxIncrease;
+        cache_->maxIncrease = maxIncrease;
       }
 
     protected:
-      using TCGSpec::InterfaceImpl<Data,Name>::data_;
+      using TCGSpec::InterfaceImpl<Cache,Name>::cache_;
     };
 
     /*! @cond */
@@ -100,67 +89,71 @@ namespace Dune
     /*! @endcond */
 
     //! Bind second template argument of RCG::InterfaceImpl to satisfy the interface of GenericStep.
-    template <class Data>
-    using Interface = InterfaceImpl<Data,Name>;
+    template < class Domain, class Range >
+    using Interface = InterfaceImpl< Cache<Domain,Range>, Name >;
 
 
     //! Compute search direction.
     class SearchDirection : public CGSpec::SearchDirection
     {
     public:
-      template <class Data>
-      void operator()(Data& data) const
+      template <class Cache>
+      void operator()( Cache& cache ) const
       {
-        CGSpec::SearchDirection::operator()(data);
+        CGSpec::SearchDirection::operator()( cache );
 
         // adjust energy norm of correction
-        data.dxPdx_ = data.sp_->dot(*data.dx_,*data.Pdx_);
-        data.dxAdx_ += data.theta_ * data.dxPdx_;
+        cache.dxPdx = cache.sp->dot(cache.dx,cache.Pdx);
+        cache.dxAdx += cache.theta * cache.dxPdx;
         // adjust preconditioned correction
-        *data.Pdx_ *= data.beta_;
-        *data.Pdx_ += *data.r_;
+        cache.Pdx *= cache.beta;
+        cache.Pdx += cache.r;
       }
     };
 
 
-    //! Update residual.
-    class UpdateResidual : public CGSpec::UpdateResidual
+    //! Update data.
+    class UpdateIterate : public CGSpec::UpdateIterate
     {
     public:
-      template <class Data, class Domain>
-      void operator()(Data& data, Domain& x) const
+      template < class Cache >
+      void operator()( Cache& cache ) const
       {
-        CGSpec::UpdateResidual::operator()(data,x);
-        data.r_->axpy(-data.alpha_*data.theta_,*data.Pdx_);
+        CGSpec::UpdateIterate::operator()( cache );
+        cache.r.axpy(-cache.alpha*cache.theta,cache.Pdx);
       }
     };
 
 
     //! Regularize if a direction of non-positive curvature is encountered.
     template <class real_type>
-    class TreatNonconvexity :
+    class Scaling :
         public Mixin::Eps<real_type>,
         public Mixin::Verbosity
     {
     public:
-      template <class Data, class Domain>
-      void operator()(Data& data, Domain&) const
+      template < class Cache >
+      void operator()( Cache& cache ) const
       {
-        if (data.dxAdx_ > 0 ) return;
+        if( cache.dxAdx > 0 )
+        {
+          cache.alpha = cache.sigma/cache.dxAdx;
+          return;
+        }
 
         if( verbosityLevel() > 1 )
-          std::cout << "    Regularizing at nonconvexity: " << data.dxAdx_ << std::endl;
-        auto oldTheta = data.theta_ > 0 ? data.theta_ : this->eps();
+          std::cout << "    Regularizing at nonconvexity: " << cache.dxAdx << std::endl;
+        auto oldTheta = cache.theta > 0 ? cache.theta : this->eps();
         using std::abs;
-        data.theta_ += (1-data.dxAdx_)/abs(data.dxPdx_);
+        cache.theta += (1-cache.dxAdx)/abs(cache.dxPdx);
         using std::min;
         using std::max;
-        data.theta_ = min(max(data.minIncrease_*oldTheta,data.theta_),data.maxIncrease_*oldTheta);
-        if( verbosityLevel() > 1 ) std::cout << "Updating regularization parameter from " << oldTheta << " to " << data.theta_ << std::endl;
+        cache.theta = min(max(cache.minIncrease*oldTheta,cache.theta),cache.maxIncrease*oldTheta);
+        if( verbosityLevel() > 1 ) std::cout << "Updating regularization parameter from " << oldTheta << " to " << cache.theta << std::endl;
 
-        data.alpha_ = 0;
-        data.operatorType_ = OperatorType::Indefinite;
-        data.doRestart_ = true;
+        cache.alpha = 0;
+        cache.operatorType = OperatorType::Indefinite;
+        cache.doRestart = true;
       }
     };
 
@@ -171,12 +164,9 @@ namespace Dune
     GenericStep<Domain, Range,
       CGSpec::ApplyPreconditioner,
       SearchDirection,
-      CGSpec::Scaling,
-      TreatNonconvexity< real_t<Domain> >,
-      CGSpec::UpdateIterate,
-      UpdateResidual,
-      Data<Domain,Range>,
-      Interface
+      Scaling< real_t<Domain> >,
+      UpdateIterate,
+      Interface<Domain,Range>
     >;
   }
 

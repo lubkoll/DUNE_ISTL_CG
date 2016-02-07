@@ -38,10 +38,19 @@ namespace Dune
         step_ = &step;
       }
 
+      double absoluteError() const
+      {
+        return 1;
+      }
+
       double errorEstimate() const
       {
         return 1;
       }
+
+      template <class InverseOperatorResult>
+      void print(InverseOperatorResult& res)
+      {}
 
       bool wasInitialized = false;
       bool value = true;
@@ -69,10 +78,19 @@ namespace Dune
       void connect(const Step&)
       {}
 
+      double absoluteError() const
+      {
+        return 1;
+      }
+
       double errorEstimate() const
       {
         return 1;
       }
+
+      template <class InverseOperatorResult>
+      void print(InverseOperatorResult& res)
+      {}
 
       bool wasInitialized = false;
     };

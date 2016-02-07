@@ -22,12 +22,24 @@ namespace Dune
 
       Vector getFinalIterate();
 
+      double residualNorm() const;
+
+      double preconditionedResidualNorm() const;
+
+      double alpha() const;
+
+      double length() const;
+
       void postProcess(Vector&);
 
       std::string name() const;
 
       bool wasInitialized = false, wasReset = false;
       Vector x0, b0;
+      double residualNorm_ = 1;
+      double preconditionedResidualNorm_ = 1;
+      double alpha_ = 1;
+      double length_ = 1;
     };
 
     struct RestartingStep

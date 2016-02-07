@@ -28,6 +28,26 @@ namespace Dune
       return x0;
     }
 
+    double Step::residualNorm() const
+    {
+      return residualNorm_;
+    }
+
+    double Step::preconditionedResidualNorm() const
+    {
+      return preconditionedResidualNorm_;
+    }
+
+    double Step::alpha() const
+    {
+      return alpha_;
+    }
+
+    double Step::length() const
+    {
+      return length_;
+    }
+
     void Step::postProcess(Vector&)
     {}
 

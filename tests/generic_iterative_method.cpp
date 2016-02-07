@@ -1,6 +1,3 @@
-// Copyright (C) 2015 by Lars Lubkoll. All rights reserved.
-// Released under the terms of the GNU General Public License version 3 or later.
-
 #include <string>
 
 #include <gtest/gtest.h>
@@ -32,89 +29,90 @@ namespace
 
 TEST(GenericIterativeMethod,NotConvergedInZeroSteps)
 {
-  auto dummySolver = Dune::makeGenericIterativeMethod(Step(),TerminationCriterion<Step>());
-  dummySolver.setMaxSteps(0);
+  auto iterativeMethod = Dune::makeGenericIterativeMethod(Step(),TerminationCriterion<Step>());
+  iterativeMethod.setMaxSteps(0);
   Mock::Vector x, b;
 
-  EXPECT_FALSE( dummySolver.wasInitialized );
+  EXPECT_FALSE( iterativeMethod.getStep().wasInitialized );
   Dune::InverseOperatorResult info;
-  dummySolver.apply(x,b,info);
+  iterativeMethod.apply(x,b,info);
   EXPECT_FALSE( info.converged );
-  EXPECT_TRUE( dummySolver.wasInitialized );
-  EXPECT_TRUE( dummySolver.getTerminationCriterion().wasInitialized );
-  EXPECT_FALSE( dummySolver.wasReset );
+  EXPECT_TRUE( iterativeMethod.getStep().wasInitialized );
+  EXPECT_TRUE( iterativeMethod.getTerminationCriterion().wasInitialized );
+  EXPECT_FALSE( iterativeMethod.getStep().wasReset );
 }
 
 TEST(GenericIterativeMethod,NotConverged)
 {
-  auto dummySolver = Dune::makeGenericIterativeMethod(Step(),TerminationCriterion<Step>(false));
-  dummySolver.setMaxSteps(10);
+  auto iterativeMethod = Dune::makeGenericIterativeMethod(Step(),TerminationCriterion<Step>(false));
+  iterativeMethod.setMaxSteps(10);
   Mock::Vector x, b;
 
-  EXPECT_FALSE( dummySolver.wasInitialized );
+  EXPECT_FALSE( iterativeMethod.getStep().wasInitialized );
   Dune::InverseOperatorResult info;
-  dummySolver.apply(x,b,info);
+  iterativeMethod.apply(x,b,info);
   EXPECT_FALSE( info.converged );
-  EXPECT_TRUE( dummySolver.wasInitialized );
-  EXPECT_TRUE( dummySolver.getTerminationCriterion().wasInitialized );
-  EXPECT_FALSE( dummySolver.wasReset );
+  EXPECT_TRUE( iterativeMethod.getStep().wasInitialized );
+  EXPECT_TRUE( iterativeMethod.getTerminationCriterion().wasInitialized );
+  EXPECT_FALSE( iterativeMethod.getStep().wasReset );
 }
 
 TEST(GenericIterativeMethod,Converged)
 {
-  auto dummySolver = Dune::makeGenericIterativeMethod(Step(),TerminationCriterion<Step>());
-  dummySolver.setMaxSteps(2);
+  auto iterativeMethod = Dune::makeGenericIterativeMethod(Step(),TerminationCriterion<Step>());
+  iterativeMethod.setMaxSteps(2);
   Mock::Vector x, b;
 
-  EXPECT_FALSE( dummySolver.wasInitialized );
+  EXPECT_FALSE( iterativeMethod.getStep().wasInitialized );
   Dune::InverseOperatorResult info;
-  dummySolver.apply(x,b,info);
+  iterativeMethod.apply(x,b,info);
   EXPECT_TRUE( info.converged );
-  EXPECT_TRUE( dummySolver.wasInitialized );
-  EXPECT_TRUE( dummySolver.getTerminationCriterion().wasInitialized );
-  EXPECT_FALSE( dummySolver.wasReset );
+  EXPECT_TRUE( iterativeMethod.getStep().wasInitialized );
+  EXPECT_TRUE( iterativeMethod.getTerminationCriterion().wasInitialized );
+  EXPECT_FALSE( iterativeMethod.getStep().wasReset );
 }
 
 TEST(GenericIterativeMethod,Converged_TerminatingStep)
 {
   TerminatingStep step;
   step.doTerminate = true;
-  auto dummySolver = Dune::makeGenericIterativeMethod(step,TerminationCriterion<TerminatingStep>());
-  dummySolver.setMaxSteps(1);
+  auto iterativeMethod = Dune::makeGenericIterativeMethod(step,TerminationCriterion<TerminatingStep>());
+  iterativeMethod.setMaxSteps(1);
   Mock::Vector x, b;
 
   Dune::InverseOperatorResult info;
-  dummySolver.apply(x,b,info);
+  iterativeMethod.apply(x,b,info);
   EXPECT_TRUE( info.converged );
-  EXPECT_TRUE( dummySolver.wasInitialized );
-  EXPECT_FALSE( dummySolver.wasReset );
+  EXPECT_TRUE( iterativeMethod.getStep().wasInitialized );
+  EXPECT_FALSE( iterativeMethod.getStep().wasReset );
 }
 
 TEST(GenericIterativeMethod,RestartAndTerminate)
 {
   RestartingStep step(true);
-  auto dummySolver = Dune::makeGenericIterativeMethod(step,TerminationCriterion<RestartingStep>(false));
-  dummySolver.setMaxSteps(1);
+  auto iterativeMethod = Dune::makeGenericIterativeMethod(step,TerminationCriterion<RestartingStep>(false));
+  iterativeMethod.setMaxSteps(1);
   Mock::Vector x, b;
 
   Dune::InverseOperatorResult info;
-  dummySolver.apply(x,b,info);
+  iterativeMethod.apply(x,b,info);
   EXPECT_TRUE( info.converged );
-  EXPECT_TRUE( dummySolver.wasInitialized );
-  EXPECT_TRUE( dummySolver.wasReset );
+  EXPECT_TRUE( iterativeMethod.getStep().wasInitialized );
+  EXPECT_TRUE( iterativeMethod.getStep().wasReset );
 }
 
 TEST(GenericIterativeMethod,MixinParameters)
 {
-  auto dummySolver = Dune::makeGenericIterativeMethod(Step(),MixinTerminationCriterion<Step>());
-  dummySolver.setAbsoluteAccuracy(testAccuracy());
-  EXPECT_DOUBLE_EQ( dummySolver.getTerminationCriterion().absoluteAccuracy() , testAccuracy() );
-  dummySolver.setRelativeAccuracy(testAccuracy());
-  EXPECT_DOUBLE_EQ( dummySolver.getTerminationCriterion().relativeAccuracy() , testAccuracy() );
-  dummySolver.setMinimalAccuracy(testAccuracy());
-  EXPECT_DOUBLE_EQ( dummySolver.getTerminationCriterion().minimalAccuracy() , testAccuracy() );
-  dummySolver.setEps(testAccuracy());
-  EXPECT_DOUBLE_EQ( dummySolver.getTerminationCriterion().eps() , testAccuracy() );
-  dummySolver.setVerbosityLevel(2);
-  EXPECT_EQ( dummySolver.getTerminationCriterion().verbosityLevel() , 2 );
+  auto iterativeMethod = Dune::makeGenericIterativeMethod(Step(),MixinTerminationCriterion<Step>());
+  iterativeMethod.setAbsoluteAccuracy(testAccuracy());
+  EXPECT_DOUBLE_EQ( iterativeMethod.getTerminationCriterion().absoluteAccuracy() , testAccuracy() );
+  iterativeMethod.setRelativeAccuracy(testAccuracy());
+  EXPECT_DOUBLE_EQ( iterativeMethod.getTerminationCriterion().relativeAccuracy() , testAccuracy() );
+  iterativeMethod.setMinimalAccuracy(testAccuracy());
+  EXPECT_DOUBLE_EQ( iterativeMethod.getTerminationCriterion().minimalAccuracy() , testAccuracy() );
+  iterativeMethod.setEps(testAccuracy());
+  EXPECT_DOUBLE_EQ( iterativeMethod.getTerminationCriterion().eps() , testAccuracy() );
+  iterativeMethod.setVerbosityLevel(2);
+  EXPECT_EQ( iterativeMethod.getTerminationCriterion().verbosityLevel() , 2u );
+  EXPECT_TRUE( iterativeMethod.getTerminationCriterion().is_verbose() );
 }

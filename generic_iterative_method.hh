@@ -6,7 +6,8 @@
 #include <ostream>
 #include <utility>
 
-#include <dune/common/typetraits.hh>
+#include "dune/common/typetraits.hh"
+#include "dune/istl/solver.hh"
 
 #include "optional.hh"
 #include "mixins.hh"
@@ -19,33 +20,134 @@ namespace Dune
   //! @cond
   namespace Detail
   {
+    /// Empty default storage object.
+    template <class domain_type, class range_type, class TerminationCriterion, class = void>
+    struct Storage
+    {
+      void store(const domain_type&, const range_type&) const noexcept
+      {}
+
+      void restore(domain_type&, range_type&) const noexcept
+      {}
+    };
+
+    /**
+     * @brief Storage object for GenericIterativeMethod with a termination criterion that may trigger restarts.
+     *
+     * Stores initial guess \f$ x0 \f$ and initial right hand side \f$ b0 \f$.
+     */
+    template <class domain_type, class range_type, class TerminationCriterion>
+    struct Storage< domain_type, range_type, TerminationCriterion, void_t< Try::MemFn_restart<TerminationCriterion> > >
+    {
+      Storage(Storage&&) = default;
+      Storage& operator=(Storage&&) = default;
+
+      Storage(const Storage& other)
+        : x0( other.x0 ? new domain_type(*other.x0) : nullptr ),
+          b0( other.b0 ? new range_type(*other.b0) : nullptr)
+      {}
+
+      Storage& operator=(const Storage& other)
+      {
+        if( other.x0 )
+          x0.reset( new domain_type(*other.x0) );
+        if( other.b0 )
+          b0.reset( new range_type(*other.b0) );
+      }
+
+      void store(const domain_type& x, const range_type& b)
+      {
+        x0.reset( new domain_type(x) );
+        b0.reset( new range_type(b) );
+      }
+
+      void restore(domain_type& x, range_type& b) const
+      {
+        assert(x0 && b0);
+        x = *x0;
+        b = *b0;
+      }
+
+      std::unique_ptr<domain_type> x0;
+      std::unique_ptr<range_type> b0;
+    };
+
+
     using namespace FGlue;
 
+    /// Is Empty if Step is derived from Mixin::Verbosity, else is Mixin::Verbosity.
     template <class Step>
     using EnableVerbosity = Apply< StoreIf< IsNotDerivedFrom<Step> > , Mixin::Verbosity >;
 
+    /**
+     * Generate a template meta-function that takes an arbitrary number of arguments and generates a
+     * type that is derived from each argument that is a base class of TerminationCriterion, but not
+     * of Step.
+     */
+    template <class Step,
+              class TerminationCriterion>
+    using AdditionalMixinsCondition =
+    Apply< Delay<Or>,
+      FGlue::IsBaseOf<TerminationCriterion>,
+      FGlue::IsBaseOf<Step>
+    >;
+
+    /// Generate type that is derived from all necessary mixin base classes for GenericIterativeMethod.
     template <class Step,
               class TerminationCriterion,
               class real_type = real_t<typename Step::domain_type> >
-    using EnableAdditionalMixinsFromTerminationCriterion =
-    Apply< Variadic< StoreIf<
-      Apply< Delay<And>,
-        FGlue::IsBaseOf<TerminationCriterion>,
-        IsNotBaseOf<Step>
-        > > ,
-      Compose>,
-      DUNE_ISTL_MIXINS(real_type)
-    >;
-
-    template <class Step,
-              class TerminationCriterion>
     using AddMixins =
     Apply< Compose,
-      EnableAdditionalMixinsFromTerminationCriterion<Step,TerminationCriterion>,
+      EnableBaseClassesIf< AdditionalMixinsCondition<Step,TerminationCriterion> , DUNE_ISTL_MIXINS( real_type ) >,
       EnableVerbosity<Step>
     >;
   }
+
+  namespace Optional
+  {
+    template < class Step >
+    using TryNestedType_Cache = typename Step::Cache;
+
+    struct NoCache
+    {
+      template <class... Args>
+      explicit NoCache(Args&&...) {}
+    };
+
+    template < class Step , class = void >
+    struct StepTraits
+    {
+      using Cache = NoCache;
+
+      static void setCache( const Step&, Cache* ) noexcept
+      {}
+    };
+
+    template < class Step >
+    struct StepTraits< Step, void_t< TryNestedType_Cache<Step> > >
+    {
+      using Cache = TryNestedType_Cache<Step>;
+
+      static void setCache( Step& step, Cache* cache )
+      {
+        step.setCache(cache);
+      }
+    };
+
+    template < class Step, class domain_type, class range_type >
+    typename StepTraits< Step >::Cache createCache( domain_type& x, range_type& y )
+    {
+      return typename StepTraits< Step >::Cache( x, y );
+    }
+
+    template < class Step, class Cache >
+    void setCache( Step& step, Cache* cache )
+    {
+      StepTraits< Step >::setCache( step, cache );
+    }
+  }
   //! @endcond
+
 
   /*!
     @ingroup ISTL_Solvers
@@ -55,7 +157,6 @@ namespace Dune
             class TerminationCriterion_,
             class real_type = real_t<typename Step_::domain_type> >
   class GenericIterativeMethod :
-      public Step_ ,
       public InverseOperator<typename Step_::domain_type, typename Step_::range_type> ,
       public Mixin::MaxSteps ,
       public Detail::AddMixins<Step_,TerminationCriterion_>
@@ -74,8 +175,8 @@ namespace Dune
       @param maxSteps
      */
     GenericIterativeMethod(Step step, TerminationCriterion terminate, unsigned maxSteps = 1000)
-      : Step(std::move(step)) ,
-        Mixin::MaxSteps(maxSteps) ,
+      : Mixin::MaxSteps(maxSteps) ,
+        step_(std::move(step)) ,
         terminate_(std::move(terminate))
     {
       initializeConnections();
@@ -117,33 +218,33 @@ namespace Dune
                                 maxSteps )
     {}
 
-    GenericIterativeMethod(const GenericIterativeMethod& other)
-      : Step(static_cast<const Step&>(other)),
-        Mixin::MaxSteps(other),
-        terminate_(other.terminate_)
-    {
-      initializeConnections();
-    }
+//    GenericIterativeMethod(const GenericIterativeMethod& other)
+//      : Step(static_cast<const Step&>(other)),
+//        Mixin::MaxSteps(other),
+//        terminate_(other.terminate_)
+//    {
+//      initializeConnections();
+//    }
 
     GenericIterativeMethod(GenericIterativeMethod&& other)
-      : Step(std::move(static_cast<Step&&>(other))),
-        Mixin::MaxSteps(std::move(other)),
-        terminate_(std::move(other.terminate_))
+      : Mixin::MaxSteps( other.maxSteps() ),
+        step_( std::move( other.step_ ) ),
+        terminate_( std::move( other.terminate_ ) )
     {
       initializeConnections();
     }
 
-    GenericIterativeMethod& operator=(const GenericIterativeMethod& other)
-    {
-      Step::operator=(static_cast<const Step&>(other));
-      Mixin::MaxSteps::operator=(other);
-      terminate_ = other.terminate_;
-      initializeConnections();
-    }
+//    GenericIterativeMethod& operator=(const GenericIterativeMethod& other)
+//    {
+//      Step::operator=(static_cast<const Step&>(other));
+//      Mixin::MaxSteps::operator=(other);
+//      terminate_ = other.terminate_;
+//      initializeConnections();
+//    }
 
     GenericIterativeMethod& operator=(GenericIterativeMethod&& other)
     {
-      Step::operator=(std::move(static_cast<Step&&>(other)));
+      step_ = std::move(static_cast<Step&&>(other));
       Mixin::MaxSteps::operator=(std::move(other));
       terminate_ = std::move(other.terminate_);
       initializeConnections();
@@ -157,7 +258,11 @@ namespace Dune
      */
     virtual void apply(domain_type& x, range_type& b, InverseOperatorResult& res)
     {
-      if( this->verbosityLevel() > 1) std::cout << "\n === " << Step::name() << " === " << std::endl;
+      if( this->verbosityLevel() > 1)
+        std::cout << "\n === " << step_.name() << " === " << std::endl;
+
+      auto cache = Optional::createCache< Step >( x, b );
+      Optional::setCache( step_, &cache );
 
       initialize(x,b);
 
@@ -166,15 +271,15 @@ namespace Dune
 
       for(; step<=maxSteps(); ++step)
       {
-        Step::compute(x,b);
+        step_.compute(x,b);
 
         if( terminate_ )
           break;
 
-        if( Optional::restart(*this) )
+        if( Optional::restart( step_ ) )
         {
-          restoreInitialInput(x,b);
-          Step::reset(x,b);
+          storage_.restore(x,b);
+          step_.reset(x,b);
           terminate_.init();
           step = 0u;
           lastErrorEstimate = 1;
@@ -188,8 +293,8 @@ namespace Dune
         }
       }
 
-      Step::postProcess(x);
-//      terminate_.print(res);
+      step_.postProcess(x);
+      terminate_.print(res);
       if( step < maxSteps() + 1 ) res.converged = true;
       if( this->is_verbose() )  printFinalOutput(res,step);
     }
@@ -201,10 +306,10 @@ namespace Dune
       @param relativeAccuracy required relative accuracy
       @param res some statistics
      */
-    virtual void apply(domain_type &x, range_type &b, double relativeAccuracy, InverseOperatorResult &res)
+    virtual void apply( domain_type &x, range_type &b, double relativeAccuracy, InverseOperatorResult &res )
     {
-      terminate_.setRelativeAccuracy(relativeAccuracy);
-      apply(x,b,res);
+      terminate_.setRelativeAccuracy( relativeAccuracy );
+      apply( x, b, res );
     }
 
     /*!
@@ -212,10 +317,10 @@ namespace Dune
       @param x initial iterate
       @param b initial right hand side
      */
-    void apply(domain_type &x, range_type &b)
+    void apply( domain_type &x, range_type &b )
     {
       InverseOperatorResult res;
-      apply(x,b,res);
+      apply( x, b, res);
     }
 
     //! Access termination criterion.
@@ -224,50 +329,45 @@ namespace Dune
       return terminate_;
     }
 
+    //! Access step implementation.
+    Step& getStep()
+    {
+      return step_;
+    }
+
   private:
     /// Initialize connections between iterative method and termination criterion.
     void initializeConnections()
     {
       // connect termination criterion to step implementation to access relevant data
-      terminate_.connect(*this);
+      terminate_.connect( step_ );
 //      Optional::bind_connect_minimalDecreaseAchieved(terminate_,*this);
 
       // attach mixins to correctly forward parameters to the termination criterion
       using namespace Mixin;
-      Optional::Mixin::Attach< DUNE_ISTL_MIXINS(real_type) >::apply(*this,terminate_);
+      Optional::Mixin::Attach< DUNE_ISTL_MIXINS( real_type ) >::apply( *this, step_ );
+      Optional::Mixin::Attach< DUNE_ISTL_MIXINS( real_type ) >::apply( *this, terminate_ );
     }
 
     void initialize(domain_type& x, range_type& b)
     {
-      storeInitialInput(x,b);
-      Step::init(x,b);
+      storage_.store(x,b);
+      step_.init(x,b);
       terminate_.init();
     }
 
-    void storeInitialInput(const domain_type& x, const range_type& b)
+    void printOutput( unsigned step, real_type lastErrorEstimate ) const
     {
-      x0 = std::unique_ptr<domain_type>(new domain_type(x));
-      b0 = std::unique_ptr<range_type>(new range_type(b));
-    }
-
-    void restoreInitialInput(domain_type& x, range_type& b)
-    {
-      x = *x0;
-      b = *b0;
-    }
-
-    void printOutput(unsigned step, real_type lastErrorEstimate) const
-    {
-      this->printHeader(std::cout);
-      InverseOperator<domain_type,range_type>::printOutput(std::cout,
-                                                           static_cast<decltype(terminate_.errorEstimate())>(step),
-                                                           terminate_.errorEstimate(),
-                                                           lastErrorEstimate);
+      this->printHeader( std::cout );
+      InverseOperator< domain_type, range_type >::printOutput( std::cout,
+                                                               static_cast<decltype(terminate_.errorEstimate())>(step),
+                                                               terminate_.errorEstimate(),
+                                                               lastErrorEstimate );
     }
 
     void printFinalOutput(const InverseOperatorResult& res, unsigned step) const
     {
-      auto name = this->name();
+      auto name = step_.name();
       name += ( (step==maxSteps()+1) ? ": Failed" : ": Converged" );
       std::cout << "\n === " << name << " === " << std::endl;
       this->printHeader(std::cout);
@@ -279,11 +379,17 @@ namespace Dune
       std::cout << " === " << name << "" << " === \n" << std::endl;
     }
 
+    Step step_;
     TerminationCriterion terminate_;
-    std::unique_ptr<domain_type> x0;
-    std::unique_ptr<range_type> b0;
+    Detail::Storage<domain_type,range_type,TerminationCriterion> storage_;
   };
 
+  /*!
+    @brief Generating function for GenericIterativeMethod.
+
+    @param step Implementation of one step of an iterative method.
+    @param terminationCriterion Implementation of a termination criterion.
+   */
   template <class Step, class TerminationCriterion>
   GenericIterativeMethod< typename std::decay<Step>::type, typename std::decay<TerminationCriterion>::type >
   makeGenericIterativeMethod(Step&& step, TerminationCriterion&& terminationCriterion)

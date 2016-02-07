@@ -3,9 +3,7 @@
 
 #include <algorithm>
 #include <cmath>
-#include <functional>
 #include <limits>
-#include <stdexcept>
 
 #include <dune/common/timer.hh>
 #include <dune/common/typetraits.hh>
@@ -159,7 +157,7 @@ namespace Dune
        */
       real_type errorEstimate() const
       {
-        return sqrt(squaredRelativeError());
+        return sqrt( squaredRelativeError() );
       }
 
       /*!
@@ -179,7 +177,7 @@ namespace Dune
        */
       bool minimalDecreaseAchieved() const
       {
-        return squaredRelativeError() < this->minimalAccuracy()*this->minimalAccuracy();
+        return squaredRelativeError() < this->minimalAccuracy() * this->minimalAccuracy();
       }
 
 
@@ -187,15 +185,15 @@ namespace Dune
       template <class Step>
       void connect(Step&& step)
       {
-        step_ = std::forward<Step>(step);
+        step_ = std::forward<Step>( step );
       }
 
       //! @copydoc ResidualBased::print()
       void print(InverseOperatorResult& res)
       {
         res.iterations = scaledGamma2.size();
-        res.reduction = sqrt(squaredRelativeError());
-        res.conv_rate = pow(res.reduction,1./res.iterations);
+        res.reduction = errorEstimate();
+        res.conv_rate = pow( res.reduction, 1./res.iterations );
         res.elapsed = watch.stop();
       }
 
@@ -205,20 +203,20 @@ namespace Dune
        */
       bool vanishingStep() const
       {
-        auto acc2 = this->absoluteAccuracy()*this->absoluteAccuracy();
+        auto acc2 = this->absoluteAccuracy() * this->absoluteAccuracy();
         using std::min;
-        if( energyNorm2 > acc2) acc2 = min(acc2,this->eps()*this->eps()*energyNorm2);
+        if( energyNorm2 > acc2 ) acc2 = min( acc2, this->eps() * this->eps() * energyNorm2 );
         return stepLength2 < acc2;
       }
 
     private:
       void readParameter()
       {
-        assert(step_);
+        assert( step_ );
         scaledGamma2.push_back( step_.alpha() * step_.preconditionedResidualNorm() );
         energyNorm2 += scaledGamma2.back();
         using std::abs;
-        stepLength2 = abs(step_.length());
+        stepLength2 = abs( step_.length() );
       }
 
       real_type squaredRelativeError() const
@@ -228,11 +226,11 @@ namespace Dune
       }
 
       unsigned lookAhead_ = 25;
-      std::vector<real_type> scaledGamma2 = std::vector<real_type>{};
+      std::vector<real_type> scaledGamma2 = std::vector<real_type>{ };
       real_type energyNorm2 = 0;
       real_type stepLength2 = 0;
-      TypeErasedCGHolder step_ = {};
-      Timer watch = Timer{false};
+      TypeErasedCGHolder step_ = { };
+      Timer watch = Timer{ false };
     };
   }
 }
